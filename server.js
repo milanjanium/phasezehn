@@ -275,14 +275,25 @@ io.on('connection', (socket) => {
     code = (code || '').trim().toUpperCase();
     const room = rooms.get(code);
     if (!room) return cb && cb({ error: 'Raum nicht gefunden.' });
+    name = (name || '').trim().slice(0, 20) || 'Spieler';
     let p = room.players.find(pp => pp.id === playerId);
+    if (!p && room.started) {
+      // Wiedereinstieg ins laufende Spiel: getrennten Spieler mit gleichem
+      // Namen übernehmen (z.B. wenn die Sitzung/ID nach Verbindungsverlust weg ist).
+      const slot = room.players.find(pp => !pp.connected && pp.name.toLowerCase() === name.toLowerCase());
+      if (slot) {
+        if (room.hostId === slot.id) room.hostId = playerId;
+        if (room.skipTargets.has(slot.id)) { room.skipTargets.delete(slot.id); room.skipTargets.add(playerId); }
+        slot.id = playerId;
+        p = slot;
+      }
+    }
     if (p) {
       // Reconnect
-      p.socketId = socket.id; p.connected = true;
+      p.socketId = socket.id; p.connected = true; p.name = name;
     } else {
-      if (room.started) return cb && cb({ error: 'Spiel läuft bereits.' });
+      if (room.started) return cb && cb({ error: 'Das Spiel läuft bereits. Zum Wiedereinstieg denselben Namen wie zuvor verwenden.' });
       if (room.players.length >= 6) return cb && cb({ error: 'Raum ist voll (max. 6).' });
-      name = (name || '').trim().slice(0, 20) || 'Spieler';
       p = makePlayer(playerId, name);
       p.socketId = socket.id;
       room.players.push(p);

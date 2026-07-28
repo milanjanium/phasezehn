@@ -40,8 +40,12 @@ function buildDeck() {
       deck.push(makeCard({ color, value }));
     }
   }
-  for (let i = 0; i < 7; i++) deck.push(makeCard({ color: null, value: 'joker', range: 'lo' }));
-  for (let i = 0; i < 7; i++) deck.push(makeCard({ color: null, value: 'joker', range: 'hi' }));
+  // Joker: je Reichweite (lo=1-6, hi=7-12) sechs Doppelfarben-Joker + ein Allfarben-Joker
+  const PAIRS = [['red', 'yellow'], ['yellow', 'green'], ['green', 'violet'], ['violet', 'red'], ['red', 'green'], ['yellow', 'violet']];
+  for (const range of ['lo', 'hi']) {
+    for (const pair of PAIRS) deck.push(makeCard({ color: null, value: 'joker', range, colors: pair.slice() }));
+    deck.push(makeCard({ color: null, value: 'joker', range, colors: COLORS.slice() }));
+  }
   const actionCounts = { skip: 6, draw2: 4, keepall: 4, give5: 4 };
   for (const [a, n] of Object.entries(actionCounts)) {
     for (let i = 0; i < n; i++) deck.push(makeCard({ color: null, value: a }));
@@ -87,9 +91,11 @@ function setOk(cards) {
 function colorOk(cards) {
   if (cards.some(isAction)) return false;
   const nums = cards.filter(isNumber);
+  const jokers = cards.filter(isJoker);
   if (nums.length < 1) return false;                // ≥1 echte Karte
   const col = nums[0].color;
-  return nums.every(c => c.color === col);          // Joker = beliebige Farbe
+  if (!nums.every(c => c.color === col)) return false;
+  return jokers.every(j => j.colors && j.colors.includes(col)); // Joker muss die Farbe können
 }
 
 // Prüft, ob die Karten eine fortlaufende Folge der Länge cards.length bilden.
@@ -122,7 +128,9 @@ function colorRunOk(cards) {
   if (!runOk(cards)) return false;
   const nums = cards.filter(isNumber);
   const col = nums[0].color;
-  return nums.every(c => c.color === col);          // zusätzlich gleiche Farbe
+  if (!nums.every(c => c.color === col)) return false; // zusätzlich gleiche Farbe
+  const jokers = cards.filter(isJoker);
+  return jokers.every(j => j.colors && j.colors.includes(col)); // Joker muss die Farbe können
 }
 
 function groupOk(cards, type) {

@@ -14,16 +14,18 @@ let myName = localStorage.getItem('p10-name') || '';
 // So startet ein Seiten-Neuladen immer frisch auf dem Login und man kann
 // einen neuen Raum erstellen. Der Auto-Rejoin (siehe unten) greift nur bei
 // echten Verbindungsabbrüchen, während die Seite geöffnet bleibt.
-let myRoom = null;
-localStorage.removeItem('p10-room'); // alte, evtl. gespeicherte Werte entfernen
+// Raum wird gemerkt (für Wiedereinstieg), aber ein Neuladen springt NICHT
+// automatisch rein – der Login bietet stattdessen einen "Zurück"-Button.
+let myRoom = localStorage.getItem('p10-room') || null;
 
-function rememberRoom(code) { myRoom = code; }
-function forgetRoom() { myRoom = null; }
+function rememberRoom(code) { myRoom = code; localStorage.setItem('p10-room', code); }
+function forgetRoom() { myRoom = null; localStorage.removeItem('p10-room'); if (typeof renderRejoin === 'function') renderRejoin(); }
 
 let state = null;          // letzter Serverzustand
 let mode = 'idle';         // 'idle' | 'lay' | 'hit'
 let selected = new Set();  // markierte Handkarten
 let lastTap = { id: null, t: 0 }; // für Doppeltipp-Ablegen
+let showHandPeek = false;         // eigene Karten im Auswahl-Overlay einblenden
 let buildGroups = [];      // beim Auslegen: Karten-IDs je Anforderung
 let activeGroup = 0;
 
@@ -106,6 +108,30 @@ function setBusy(id, busy) {
   else { if (b.dataset.label) b.textContent = b.dataset.label; b.disabled = !socket.connected; }
 }
 
+// ---------- Wiedereinstieg-Button (nach Verbindungsverlust / Neuladen) ----------
+function renderRejoin() {
+  const box = $('rejoin-box'); if (!box) return;
+  box.innerHTML = '';
+  if (myRoom && myName) {
+    const b = btn(`▶ Zurück in Raum ${myRoom}`, 'primary', rejoinGame);
+    box.appendChild(b);
+    const p = document.createElement('p'); p.className = 'hint'; p.style.textAlign = 'center';
+    p.textContent = `Als „${myName}" wieder einsteigen`;
+    box.appendChild(p);
+  }
+}
+function rejoinGame() {
+  if (!myRoom || !myName) return;
+  if (!socket.connected) return ($('login-error').textContent = 'Verbindung wird noch hergestellt – gleich nochmal versuchen.');
+  $('login-error').textContent = '';
+  socket.timeout(9000).emit('joinRoom', { code: myRoom, name: myName, playerId }, (err, res) => {
+    if (err) return ($('login-error').textContent = 'Server antwortet nicht. Bitte erneut versuchen (Dienst startet evtl. gerade).');
+    if (res.error) { forgetRoom(); return ($('login-error').textContent = res.error); }
+    if (res.ok) rememberRoom(res.code);
+  });
+}
+renderRejoin();
+
 // ---------- Lobby ----------
 $('btn-start').onclick = () => socket.emit('startGame');
 
@@ -177,6 +203,7 @@ socket.on('state', (s) => {
   if (s.roundOver) return renderRoundOver();
   if (s.give5) return renderGive5();
   if (s.myPendingDraw) return renderPendingDraw();
+  showHandPeek = false;
   $('overlay').classList.add('hidden');
 });
 
@@ -201,14 +228,30 @@ function colorFor(name) {
 function cardEl(card, small) {
   const d = document.createElement('div');
   const classes = ['card']; if (small) classes.push('small');
-  let center, idx, cap = '';
+
+  // Joker: Reichweite groß + farbige Punkte (welche Farben er ersetzen darf)
   if (card.value === 'joker') {
-    classes.push('wild');
+    classes.push('joker', card.range === 'lo' ? 'jlo' : 'jhi');
+    d.className = classes.join(' ');
     const r = card.range === 'lo' ? '1–6' : '7–12';
-    center = '★'; idx = r; cap = 'JOKER ' + r;
-  } else if (card.value === 'skip') { classes.push('act', 'skip'); center = '⊘'; idx = '⊘'; cap = 'AUSSETZEN'; }
-  else if (card.value === 'draw2') { classes.push('act', 'draw2'); center = '+2'; idx = '+2'; cap = 'NIMM ZWEI'; }
-  else if (card.value === 'keepall') { classes.push('act', 'keepall'); center = '♥'; idx = '♥'; cap = 'ALLES MEINS'; }
+    const cols = card.colors || [];
+    const dots = cols.map(c => `<span class="jdot ${c}"></span>`).join('');
+    if (small) {
+      d.innerHTML = `<span class="j-range">${r}</span><span class="j-dots">${dots}</span>`;
+    } else {
+      d.innerHTML =
+        `<span class="j-label">JOKER</span>` +
+        `<span class="j-range">${r}</span>` +
+        `<span class="j-dots">${dots}</span>` +
+        `<span class="j-note">${cols.length === 4 ? 'alle Farben' : 'nur diese Farben'}</span>`;
+    }
+    return d;
+  }
+
+  let center, idx, cap = '';
+  if (card.value === 'skip') { classes.push('act', 'skip'); center = '⊘'; idx = '⊘'; cap = 'AUSSETZEN'; }
+  else if (card.value === 'draw2') { classes.push('act', 'draw2'); center = '✌️'; idx = '2'; cap = 'NIMM ZWEI'; }
+  else if (card.value === 'keepall') { classes.push('act', 'keepall'); center = '👍'; idx = '👍'; cap = 'ALLES MEINS'; }
   else if (card.value === 'give5') { classes.push('act', 'give5'); center = '✋'; idx = '5'; cap = 'GIVE FIVE'; }
   else { classes.push(card.color); center = card.value; idx = card.value; }
   d.className = classes.join(' ');
@@ -532,6 +575,19 @@ function chooseSkipTarget(cardId) {
   }, []);
 }
 
+// Eigene Handkarten im Overlay ein-/ausblenden (Button)
+function appendHandPeek(body, rerender) {
+  if (!state || !state.myHand || !state.myHand.length) return;
+  const b = btn(showHandPeek ? '🃏 Karten verbergen' : '🃏 Meine Karten ansehen', 'peek', () => { showHandPeek = !showHandPeek; rerender(); });
+  b.classList.add('peek-btn');
+  body.appendChild(b);
+  if (showHandPeek) {
+    const strip = document.createElement('div'); strip.className = 'hand-peek';
+    state.myHand.forEach(c => strip.appendChild(cardEl(c, true)));
+    body.appendChild(strip);
+  }
+}
+
 // ---------- Nimm zwei!: Karte wählen ----------
 function renderPendingDraw() {
   showOverlay('Nimm zwei! – Karte wählen', 'Behalte eine Karte, die andere wird abgeworfen.', (body) => {
@@ -543,6 +599,7 @@ function renderPendingDraw() {
       wrap.appendChild(col);
     });
     body.appendChild(wrap);
+    appendHandPeek(body, renderPendingDraw);
   }, []);
 }
 
@@ -551,7 +608,9 @@ function renderGive5() {
   const g = state.give5;
   if (g.by === playerId) {
     if (g.phase === 'collecting') {
-      showOverlay('✋ Give me Five!', `Warte auf Karten der Mitspieler … (${g.collected}/${g.needed})`, null, []);
+      showOverlay('✋ Give me Five!', `Warte auf Karten der Mitspieler … (${g.collected}/${g.needed})`, (body) => {
+        appendHandPeek(body, renderGive5);
+      }, []);
     } else {
       showOverlay('✋ Give me Five! – nimm eine Karte', 'Wähle eine der angebotenen Karten.', (body) => {
         const wrap = document.createElement('div'); wrap.className = 'g5-offers';
@@ -560,6 +619,7 @@ function renderGive5() {
           wrap.appendChild(ce);
         });
         body.appendChild(wrap);
+        appendHandPeek(body, renderGive5);
       }, []);
     }
   } else if (g.currentOffererId === playerId && g.phase === 'collecting') {

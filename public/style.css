@@ -468,6 +468,47 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
   text-shadow: 0 2px 12px rgba(255,204,77,.4);
 }
 
+/* ---- Joker-Karten: Reichweite groß + Farb-Punkte (kein Stern) ---- */
+.card.joker {
+  flex-direction: column;
+  background: linear-gradient(155deg, #303561, #171a2e);
+  color: #fff; box-shadow: 0 3px 10px rgba(0,0,0,.5), inset 0 0 0 1px rgba(255,255,255,.08);
+}
+.card.joker .c-idx { color: rgba(255,255,255,.7); font-weight: 800; }
+.j-label {
+  position: absolute; top: 7%; left: 0; right: 0; text-align: center;
+  font-size: calc(var(--card-w) * .12); letter-spacing: 2px; font-weight: 800;
+  color: rgba(255,255,255,.5);
+}
+.j-range { font-size: calc(var(--card-w) * .34); font-weight: 900; color: #ffd76a; line-height: 1; }
+.j-dots { display: flex; flex-wrap: wrap; gap: calc(var(--card-w) * .05); justify-content: center; margin-top: calc(var(--card-w) * .07); max-width: 82%; }
+.jdot {
+  width: calc(var(--card-w) * .16); height: calc(var(--card-w) * .16); border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.4);
+}
+.jdot.red { background: var(--red); }
+.jdot.yellow { background: var(--yellow); }
+.jdot.green { background: var(--green); }
+.jdot.violet { background: #9b51e0; }
+.j-note {
+  position: absolute; bottom: 6.5%; left: 0; right: 0; text-align: center;
+  font-size: calc(var(--card-w) * .1); color: rgba(255,255,255,.5); padding: 0 4px;
+}
+.card.small.joker { gap: 2px; }
+.card.small .j-label, .card.small .j-note { display: none; }
+.card.small .j-range { font-size: 14px; color: #ffd76a; font-weight: 900; }
+.card.small .j-dots { gap: 2px; margin-top: 3px; }
+.card.small .jdot { width: 7px; height: 7px; }
+
+/* ---- „Meine Karten ansehen" im Overlay ---- */
+.peek-btn { width: auto !important; min-width: 210px; margin: 16px auto 0 !important; display: block; background: var(--panel2); }
+.hand-peek { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; margin-top: 12px; max-height: 32vh; overflow-y: auto; }
+
+/* ---- Wiedereinstieg-Box auf dem Login ---- */
+.rejoin-box { margin: 6px 0 2px; }
+.rejoin-box:not(:empty) { padding-bottom: 8px; border-bottom: 1px solid #33436b; margin-bottom: 14px; }
+.rejoin-box .hint { margin: 6px 0 0; }
+
 /* ============================================================
    Responsive: Tablet
    ============================================================ */
