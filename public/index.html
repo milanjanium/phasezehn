@@ -12,6 +12,7 @@
   <section id="screen-login" class="screen active">
     <div class="card-panel">
       <h1 class="logo">PHASE<span>10</span></h1>
+      <p class="master-badge">MASTER</p>
       <p class="subtitle">Online mit Freunden – jeder an seinem Gerät</p>
 
       <div id="conn-status" class="conn-status"></div>
@@ -83,7 +84,7 @@
       <div class="game-bottom">
         <div id="build-area" class="build-area hidden"></div>
         <div class="hand-header">
-          <span>Deine Karten (<span id="hand-count">0</span>)</span>
+          <span>Deine Karten (<span id="hand-count">0</span>) <span id="my-front"></span></span>
           <button id="btn-sort" class="btn tiny">Sortieren</button>
         </div>
         <div id="my-hand" class="hand"></div>
@@ -102,6 +103,8 @@
   </div>
 
   <button id="btn-leave" class="btn-leave hidden">↩ Verlassen</button>
+  <div id="room-badge" class="room-badge hidden"></div>
+  <div id="reconnect-bar" class="reconnect-bar hidden">⚠ Verbindung verloren – versuche neu zu verbinden …</div>
 
   <div id="toast" class="toast hidden"></div>
 

@@ -40,14 +40,32 @@ html, body {
 /* ============================================================
    Login / Lobby
    ============================================================ */
-#screen-login, #screen-lobby { align-items: center; justify-content: center; padding: 20px; }
+#screen-login, #screen-lobby { align-items: center; justify-content: center; padding: 20px; position: relative; overflow: hidden; }
+/* Startseite: dynamischer, moderner Hintergrund + schwebende Karten-Motive */
+#screen-login {
+  background:
+    radial-gradient(60% 50% at 15% 0%, rgba(108,140,255,.22), transparent 60%),
+    radial-gradient(55% 45% at 100% 18%, rgba(255,122,198,.16), transparent 60%),
+    radial-gradient(50% 45% at 82% 100%, rgba(255,204,77,.14), transparent 60%),
+    var(--bg);
+}
+#screen-login::before, #screen-login::after {
+  content: ''; position: absolute; border-radius: 22px; pointer-events: none;
+  background: linear-gradient(150deg, rgba(255,255,255,.08), rgba(255,255,255,.02));
+  border: 1px solid rgba(255,255,255,.08);
+}
+#screen-login::before { width: 150px; height: 210px; top: 12%; left: -46px; animation: floatCardA 9s ease-in-out infinite; }
+#screen-login::after  { width: 128px; height: 182px; bottom: 9%; right: -34px; animation: floatCardB 11s ease-in-out infinite; }
+@keyframes floatCardA { 0%,100% { transform: translateY(0) rotate(-17deg); } 50% { transform: translateY(-24px) rotate(-12deg); } }
+@keyframes floatCardB { 0%,100% { transform: translateY(0) rotate(15deg); } 50% { transform: translateY(20px) rotate(10deg); } }
+
 .card-panel {
-  width: 100%; max-width: 430px;
-  background: linear-gradient(180deg, rgba(31,44,71,.92), rgba(24,34,56,.92));
-  border: 1px solid var(--line);
-  border-radius: 22px; padding: 30px 26px;
-  box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,.05);
-  backdrop-filter: blur(6px);
+  width: 100%; max-width: 430px; position: relative; z-index: 1;
+  background: linear-gradient(180deg, rgba(33,46,74,.94), rgba(22,31,52,.96));
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 24px; padding: 32px 26px;
+  box-shadow: 0 30px 80px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.08);
+  backdrop-filter: blur(10px);
 }
 .logo {
   font-size: 58px; font-weight: 900; letter-spacing: 1px;
@@ -245,9 +263,19 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
 }
 
 .card.red    { color: var(--red); }
-.card.blue   { color: var(--blue); }
+.card.violet { color: #9b51e0; }
 .card.green  { color: var(--green); }
 .card.yellow { color: var(--yellow); }
+
+/* Aktionskarten (blau, Master) */
+.card.act { color: #fff; text-shadow: 0 2px 5px rgba(0,0,0,.45); }
+.card.act.skip    { background: linear-gradient(160deg,#2a2f3d,#171a24); }
+.card.act.draw2   { background: linear-gradient(155deg,#2b6fff,#123a99); }
+.card.act.keepall { background: linear-gradient(155deg,#7a4dff,#3d1f8f); }
+.card.act.give5   { background: linear-gradient(155deg,#0aa2c0,#0b5f8f); }
+.card.act .c-center { font-size: calc(var(--card-w) * .46); }
+.card.small.act .c-center { font-size: 15px; }
+.card.wild .c-idx { font-size: calc(var(--card-w) * .18); }
 
 .card.wild {
   background: linear-gradient(135deg,#ff7ac6,#8a6cff 45%,#4dc6ff 75%,#ffcc4d);
@@ -386,6 +414,47 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
 }
 .btn-leave:hover { filter: brightness(1.15); }
 .btn-leave:active { transform: scale(.96); }
+
+/* Raum-Code-Badge (immer sichtbar im Spiel/Lobby) */
+.room-badge {
+  position: fixed; top: 12px; left: 12px; z-index: 40;
+  padding: 8px 14px; font-size: 13px; font-weight: 800; letter-spacing: 1px;
+  background: rgba(9,16,28,.7); color: var(--gold);
+  border: 1px solid rgba(255,204,77,.4); border-radius: 10px;
+  backdrop-filter: blur(4px); font-family: 'SF Mono', Menlo, monospace;
+}
+
+/* Verbindungsabbruch-Leiste */
+.reconnect-bar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 70;
+  background: linear-gradient(120deg,#c33,#e5484d); color: #fff;
+  text-align: center; padding: 9px; font-weight: 700; font-size: 14px;
+  animation: connBlink 1.2s ease-in-out infinite;
+}
+
+/* Front-Aktionskarten-Badges */
+.front-tag {
+  display: inline-block; font-size: 11px; font-weight: 800; padding: 1px 7px;
+  border-radius: 8px; margin-left: 4px; vertical-align: middle;
+}
+.front-tag.draw2   { background: rgba(43,111,255,.9); color: #fff; }
+.front-tag.keepall { background: rgba(122,77,255,.9); color: #fff; }
+.front-tag.skip    { background: rgba(229,72,77,.9); color: #fff; }
+
+/* Nimm-zwei-Auswahl & Give-me-Five-Angebote */
+.draw2-choose { display: flex; gap: 20px; justify-content: center; margin-top: 16px; }
+.draw2-opt { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.draw2-opt .btn { margin: 0; }
+.g5-offers { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 16px; }
+.g5-offers .card { cursor: pointer; transition: transform .1s, box-shadow .1s; }
+.g5-offers .card:hover { transform: translateY(-8px); box-shadow: 0 0 0 3px var(--gold), 0 10px 20px rgba(0,0,0,.5); }
+
+/* Master-Badge auf der Startseite */
+.master-badge {
+  text-align: center; margin: -2px 0 10px; font-weight: 900; letter-spacing: 6px;
+  font-size: 15px; color: var(--gold);
+  text-shadow: 0 2px 12px rgba(255,204,77,.4);
+}
 
 /* ============================================================
    Responsive: Tablet

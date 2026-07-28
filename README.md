@@ -1,7 +1,8 @@
-# Phase 10 – Online Multiplayer
+# Phase 10 Master – Online Multiplayer
 
-Ein browserbasiertes Echtzeit-Multiplayer-Kartenspiel. Jeder spielt an
-seinem eigenen Gerät (Handy, Tablet, Laptop) – verbunden über einen Raum-Code.
+Ein browserbasiertes Echtzeit-Multiplayer-Kartenspiel (Variante **Phase 10
+Master**). Jeder spielt an seinem eigenen Gerät (Handy, Tablet, Laptop) –
+verbunden über einen Raum-Code.
 
 ## Starten
 
@@ -41,28 +42,34 @@ Aufruf nach einer Pause dauert ~30–50 Sek., danach läuft alles flüssig.
 ## Spielregeln (Kurzfassung)
 
 - **Ziel:** Als Erster alle 10 Phasen der Reihe nach abschließen.
-- **Karten:** 1–12 in 4 Farben (je 2×), 8 Joker, 4 Aussetzen-Karten.
+- **Karten (128):** 1–12 in 4 Farben (Rot, Gelb, Grün, Violett; je 2×),
+  14 Joker (Reichweite **1–6** oder **7–12**) und 18 blaue Aktionskarten.
 - **Zug:** 1 Karte ziehen (Nachziehstapel *oder* Ablage) → optional Phase
-  auslegen / anlegen → 1 Karte ablegen.
-- **Joker** ersetzt jede Karte. **Aussetzen** lässt einen Mitspieler
-  pausieren (kann nicht von der Ablage aufgenommen werden).
+  auslegen / anlegen → 1 Karte ablegen **oder** eine Aktionskarte spielen.
+- **Joker** ersetzt Karten seiner Reichweite (jedes Set braucht ≥1 echte
+  Karte, jede Folge ≥2). **Aktionskarten** siehe unten.
 - Wer zuerst alle Handkarten los ist, beendet die Runde. Nur wer seine
   Phase geschafft hat, rückt zur nächsten vor.
-- **Punkte** (wenig = gut) für Restkarten: 1–9 = 5 P., 10–12 = 10 P.,
-  Aussetzen = 15 P., Joker = 25 P.
+- **Wertung:** jede Restkarte = **1 Minuspunkt** (wenig = gut).
 - Sieger: Wer Phase 10 abschließt – bei Gleichstand die wenigsten Punkte.
 
-### Die 10 Phasen
-1. 2 Drillinge (je 3 gleiche)
-2. 1 Drilling (3) + 1 Straße (4)
-3. 1 Vierling (4) + 1 Straße (4)
-4. 1 Straße aus 7 Karten
-5. 1 Straße aus 8 Karten
-6. 1 Straße aus 9 Karten
+### Die 10 Master-Phasen
+1. 4 Zwillinge (je 2 gleiche)
+2. 6 Karten einer Farbe
+3. 1 Vierling (4) + 1 Viererfolge (4)
+4. 1 Achterfolge (8)
+5. 7 Karten einer Farbe
+6. 1 Neunerfolge (9)
 7. 2 Vierlinge (je 4 gleiche)
-8. 7 Karten einer Farbe
-9. 1 Fünfling (5) + 1 Zwilling (2)
-10. 1 Fünfling (5) + 1 Drilling (3)
+8. 1 Viererfolge einer Farbe (4) + 1 Drilling (3)
+9. 1 Fünfling (5) + 1 Drilling (3)
+10. 1 Fünfling (5) + 1 Dreierfolge einer Farbe (3)
+
+### Aktionskarten (statt Ablegen ausspielen)
+- **Aussetzen!** – ein gewählter Mitspieler muss eine Runde aussetzen.
+- **Nimm zwei!** – ab dem nächsten Zug 2 Karten ziehen, 1 behalten.
+- **Alles meins!** – am Rundenende die Handkarten behalten statt neu auszuteilen.
+- **Give me Five!** – alle Mitspieler bieten zusammen 5 Karten an, du nimmst 1.
 
 ## Technik
 
@@ -80,4 +87,7 @@ Aufruf nach einer Pause dauert ~30–50 Sek., danach läuft alles flüssig.
   Karten antippen → „Auslegen bestätigen".
 - **Anlegen:** Nach eigener Phase Karten wählen und auf eine ausliegende
   Phase (eigene oder fremde) tippen.
-- **Ablegen:** Eine Handkarte antippen → „Karte ablegen".
+- **Ablegen:** Eine Handkarte antippen → „Karte ablegen" – oder die Karte
+  **doppelt antippen** (legt sie sofort ab).
+- **Aktionskarte spielen:** Aktionskarte antippen → „▶ Aktion spielen".
+- **Raum-Code** ist oben links immer sichtbar (für Wiederbeitritt).

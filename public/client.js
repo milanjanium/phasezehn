@@ -23,6 +23,7 @@ function forgetRoom() { myRoom = null; }
 let state = null;          // letzter Serverzustand
 let mode = 'idle';         // 'idle' | 'lay' | 'hit'
 let selected = new Set();  // markierte Handkarten
+let lastTap = { id: null, t: 0 }; // für Doppeltipp-Ablegen
 let buildGroups = [];      // beim Auslegen: Karten-IDs je Anforderung
 let activeGroup = 0;
 
@@ -133,7 +134,7 @@ socket.on('connect', () => {
 // ---------- Sortieren ----------
 $('btn-sort').onclick = () => {
   if (!state) return;
-  const order = (c) => (c.value === 'wild' ? 100 : c.value === 'skip' ? 101 : c.value);
+  const order = (c) => (typeof c.value === 'number' ? c.value : c.value === 'joker' ? 100 : 200);
   state.myHand.sort((a, b) => order(a) - order(b) || String(a.color).localeCompare(String(b.color)));
   renderHand();
 };
@@ -142,8 +143,18 @@ $('btn-sort').onclick = () => {
 $('draw-pile').onclick = () => tryDraw('draw');
 $('discard-pile').onclick = () => tryDraw('discard');
 function tryDraw(source) {
-  if (!isMyTurn() || state.myHasDrawn) return;
+  if (!isMyTurn() || state.myHasDrawn || state.myPendingDraw) return;
   socket.emit('draw', { source });
+}
+
+// ---------- Verbindungsabbruch-Hinweis (im Spiel) ----------
+socket.on('disconnect', () => { if (state && state.started) $('reconnect-bar').classList.remove('hidden'); });
+socket.on('connect', () => $('reconnect-bar').classList.add('hidden'));
+
+function updateRoomBadge() {
+  const b = $('room-badge');
+  if (state && state.code) { b.textContent = 'Raum ' + state.code; b.classList.remove('hidden'); }
+  else b.classList.add('hidden');
 }
 
 // ============================================================
@@ -155,14 +166,17 @@ socket.on('state', (s) => {
   const prevStarted = state && state.started;
   state = s;
 
-  if (!s.started) { show('screen-lobby'); renderLobby(); return; }
+  if (!s.started) { show('screen-lobby'); renderLobby(); updateRoomBadge(); return; }
 
   if (!prevStarted) { mode = 'idle'; selected.clear(); }
   show('screen-game');
+  updateRoomBadge();
   renderGame();
 
   if (s.gameOver) return renderGameOver();
   if (s.roundOver) return renderRoundOver();
+  if (s.give5) return renderGive5();
+  if (s.myPendingDraw) return renderPendingDraw();
   $('overlay').classList.add('hidden');
 });
 
@@ -186,12 +200,18 @@ function colorFor(name) {
 // ---------- Karten ----------
 function cardEl(card, small) {
   const d = document.createElement('div');
-  d.className = 'card' + (small ? ' small' : '');
-  let cls, center, idx, cap = '';
-  if (card.value === 'wild') { cls = 'wild'; center = '★'; idx = '★'; cap = 'JOKER'; }
-  else if (card.value === 'skip') { cls = 'skip'; center = '⊘'; idx = '⊘'; cap = 'STOP'; }
-  else { cls = card.color; center = card.value; idx = card.value; }
-  d.classList.add(cls);
+  const classes = ['card']; if (small) classes.push('small');
+  let center, idx, cap = '';
+  if (card.value === 'joker') {
+    classes.push('wild');
+    const r = card.range === 'lo' ? '1–6' : '7–12';
+    center = '★'; idx = r; cap = 'JOKER ' + r;
+  } else if (card.value === 'skip') { classes.push('act', 'skip'); center = '⊘'; idx = '⊘'; cap = 'AUSSETZEN'; }
+  else if (card.value === 'draw2') { classes.push('act', 'draw2'); center = '+2'; idx = '+2'; cap = 'NIMM ZWEI'; }
+  else if (card.value === 'keepall') { classes.push('act', 'keepall'); center = '♥'; idx = '♥'; cap = 'ALLES MEINS'; }
+  else if (card.value === 'give5') { classes.push('act', 'give5'); center = '✋'; idx = '5'; cap = 'GIVE FIVE'; }
+  else { classes.push(card.color); center = card.value; idx = card.value; }
+  d.className = classes.join(' ');
   if (small) {
     d.innerHTML = `<span class="c-center">${center}</span>`;
   } else {
@@ -203,6 +223,17 @@ function cardEl(card, small) {
       `<span class="c-gloss"></span>`;
   }
   return d;
+}
+
+function isActionCard(card) { return ['skip', 'draw2', 'keepall', 'give5'].includes(card.value); }
+
+// kleine Badges für Front-Aktionskarten / Aussetzen-Status
+function frontTags(p) {
+  let s = '';
+  if (p.draw2) s += ' <span class="front-tag draw2">+2</span>';
+  if (p.keepAll) s += ' <span class="front-tag keepall">♥ Alles meins</span>';
+  if (p.willSkip) s += ' <span class="front-tag skip">⊘ setzt aus</span>';
+  return s;
 }
 
 // ============================================================
@@ -259,7 +290,7 @@ function renderGame() {
            <div class="meta">${p.handCount} Karten · ${p.score} P.</div>
          </div>
        </div>
-       <div class="opp-phase">Phase ${p.phase + 1}${p.laidThisRound ? ' <span class="laid-tag">✓ ausgelegt</span>' : ''}</div>`;
+       <div class="opp-phase">Phase ${p.phase + 1}${p.laidThisRound ? ' <span class="laid-tag">✓ ausgelegt</span>' : ''}${frontTags(p)}</div>`;
     opp.appendChild(div);
   }
 
@@ -272,6 +303,8 @@ function renderGame() {
     s.className = 'pip' + (i < state.myPhaseIndex ? ' done' : i === state.myPhaseIndex ? ' cur' : '');
     pips.appendChild(s);
   }
+  const meP = me();
+  $('my-front').innerHTML = meP ? frontTags(meP).trim() : '';
 
   // Stapel
   $('draw-count').textContent = state.drawCount;
@@ -345,11 +378,32 @@ function onCardTap(card) {
     renderBuildArea(); renderHand();
     return;
   }
-  // idle / hit: toggeln
-  if (selected.has(card.id)) selected.delete(card.id);
-  else selected.add(card.id);
+  if (mode === 'hit') {
+    if (selected.has(card.id)) selected.delete(card.id); else selected.add(card.id);
+    renderHand(); renderControls();
+    return;
+  }
+  // idle: Doppeltipp = direkt ablegen/spielen (flüssig); Einzeltipp = auswählen
+  const now = Date.now();
+  if (lastTap.id === card.id && now - lastTap.t < 400) {
+    lastTap = { id: null, t: 0 };
+    endTurnWithCard(card.id);
+    return;
+  }
+  lastTap = { id: card.id, t: now };
+  selected.clear(); selected.add(card.id);
+  renderHand(); renderControls();
+}
+
+// Zug beenden: Zahl/Joker ablegen oder Aktionskarte spielen
+function endTurnWithCard(cardId) {
+  const card = state.myHand.find(c => c.id === cardId);
+  if (!card) return;
+  if (card.value === 'skip') return chooseSkipTarget(cardId);
+  selected.clear(); lastTap = { id: null, t: 0 };
+  if (isActionCard(card)) socket.emit('playAction', { cardId });
+  else socket.emit('discard', { cardId });
   renderHand();
-  if (mode === 'hit') renderControls();
 }
 
 function renderControls() {
@@ -363,9 +417,14 @@ function renderControls() {
     build.classList.add('hidden');
     if (!state.myLaidThisRound) c.appendChild(btn('Phase auslegen', 'primary', startLay));
     if (state.myLaidThisRound) c.appendChild(btn('Anlegen', '', startHit));
-    const discardBtn = btn('Karte ablegen', 'good', doDiscard);
-    discardBtn.disabled = selected.size !== 1;
-    c.appendChild(discardBtn);
+    const sel = selected.size === 1 ? state.myHand.find(x => x.id === [...selected][0]) : null;
+    const actSel = sel && isActionCard(sel);
+    const b = btn(actSel ? '▶ Aktion spielen' : 'Karte ablegen', 'good', doDiscard);
+    b.disabled = selected.size !== 1;
+    c.appendChild(b);
+    const hint = document.createElement('p'); hint.className = 'hint';
+    hint.textContent = 'Tipp: Karte doppelt tippen legt sie sofort ab.';
+    c.appendChild(hint);
   } else if (mode === 'lay') {
     renderBuildArea();
     c.appendChild(btn('Auslegen bestätigen', 'primary', confirmLay));
@@ -410,7 +469,7 @@ function renderBuildArea() {
     const g = document.createElement('div');
     g.className = 'build-group' + (i === activeGroup ? ' active' : '');
     g.onclick = () => { activeGroup = i; renderBuildArea(); };
-    const labelMap = { set: 'Gleiche Zahl', run: 'Straße', color: 'Gleiche Farbe' };
+    const labelMap = { set: 'Gleiche Zahl', run: 'Straße', color: 'Gleiche Farbe', colorrun: 'Farbfolge' };
     g.innerHTML = `<div class="bg-title">${labelMap[r.type]} – ${buildGroups[i].length}/${r.count} Karten ${i === activeGroup ? '(aktiv)' : ''}</div>`;
     const slot = document.createElement('div'); slot.className = 'build-slot';
     buildGroups[i].forEach(id => {
@@ -451,30 +510,70 @@ function doHit(targetId, groupIndex) {
   selected.clear();
 }
 
-// ---------- Ablegen ----------
+// ---------- Ablegen / Aktion spielen ----------
 function doDiscard() {
-  if (selected.size !== 1) return toast('Genau eine Karte zum Ablegen wählen.');
-  const cardId = [...selected][0];
-  const card = state.myHand.find(c => c.id === cardId);
-  if (card && card.value === 'skip') return chooseSkipTarget(cardId);
-  socket.emit('discard', { cardId });
-  selected.clear();
+  if (selected.size !== 1) return toast('Genau eine Karte wählen.');
+  endTurnWithCard([...selected][0]);
 }
 
 function chooseSkipTarget(cardId) {
   const others = state.players.filter(p => p.id !== playerId);
-  showOverlay('⊘ Aussetzen-Karte', 'Wer soll eine Runde aussetzen?', (body) => {
+  showOverlay('⊘ Aussetzen!', 'Wer soll aussetzen?', (body) => {
     const wrap = document.createElement('div'); wrap.className = 'skip-choose';
     others.forEach(p => {
       const b = btn(p.name, '', () => {
-        socket.emit('discard', { cardId, skipTargetId: p.id });
-        selected.clear();
+        socket.emit('playAction', { cardId, targetId: p.id });
+        selected.clear(); lastTap = { id: null, t: 0 };
         $('overlay').classList.add('hidden');
       });
       wrap.appendChild(b);
     });
     body.appendChild(wrap);
   }, []);
+}
+
+// ---------- Nimm zwei!: Karte wählen ----------
+function renderPendingDraw() {
+  showOverlay('Nimm zwei! – Karte wählen', 'Behalte eine Karte, die andere wird abgeworfen.', (body) => {
+    const wrap = document.createElement('div'); wrap.className = 'draw2-choose';
+    state.myPendingDraw.forEach(card => {
+      const col = document.createElement('div'); col.className = 'draw2-opt';
+      col.appendChild(cardEl(card));
+      col.appendChild(btn('Behalten', 'primary', () => socket.emit('keepDrawn', { cardId: card.id })));
+      wrap.appendChild(col);
+    });
+    body.appendChild(wrap);
+  }, []);
+}
+
+// ---------- Give me Five! ----------
+function renderGive5() {
+  const g = state.give5;
+  if (g.by === playerId) {
+    if (g.phase === 'collecting') {
+      showOverlay('✋ Give me Five!', `Warte auf Karten der Mitspieler … (${g.collected}/${g.needed})`, null, []);
+    } else {
+      showOverlay('✋ Give me Five! – nimm eine Karte', 'Wähle eine der angebotenen Karten.', (body) => {
+        const wrap = document.createElement('div'); wrap.className = 'g5-offers';
+        (g.offers || []).forEach(card => {
+          const ce = cardEl(card); ce.onclick = () => socket.emit('pickOffered', { cardId: card.id });
+          wrap.appendChild(ce);
+        });
+        body.appendChild(wrap);
+      }, []);
+    }
+  } else if (g.currentOffererId === playerId && g.phase === 'collecting') {
+    showOverlay('✋ Give me Five!', `${g.byName} fordert Karten – gib eine ab:`, (body) => {
+      const wrap = document.createElement('div'); wrap.className = 'g5-offers';
+      state.myHand.forEach(card => {
+        const ce = cardEl(card); ce.onclick = () => socket.emit('offerCard', { cardId: card.id });
+        wrap.appendChild(ce);
+      });
+      body.appendChild(wrap);
+    }, []);
+  } else {
+    showOverlay('✋ Give me Five!', `${g.byName} spielt „Give me Five!". Bitte warten … (${g.collected}/${g.needed})`, null, []);
+  }
 }
 
 // ============================================================
