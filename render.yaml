@@ -1,0 +1,13 @@
+# Render Blueprint – deployt Phase 10 automatisch.
+# Auf render.com -> New -> Blueprint -> dieses Repo wählen.
+services:
+  - type: web
+    name: phasezehn
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: "20"

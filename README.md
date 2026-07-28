@@ -21,8 +21,22 @@ Der Server läuft dann auf **http://localhost:3000**.
 5. Die anderen geben Namen + Code ein und treten bei.
 6. Der Host startet das Spiel (ab 2 Spielern, bis zu 6).
 
-> Für Spiel über das Internet (nicht nur WLAN) den Server z.B. bei
-> Render, Railway, Fly.io o.ä. deployen – er ist ein Standard-Node-Server.
+## Online spielen (von überall, egal welches WLAN)
+
+Das Projekt ist deploy-fertig (enthält `render.yaml`). Auf **Render** (kostenlos):
+
+1. Auf [render.com](https://render.com) mit **GitHub** anmelden.
+2. **New ▸ Blueprint** → Repo `milanjanium/phasezehn` auswählen
+   (bei privatem Repo einmalig Render-Zugriff auf GitHub erlauben).
+3. Render liest `render.yaml`, klickt **Apply/Deploy** – fertig.
+4. Nach ~1–2 Min. gibt es eine öffentliche URL wie
+   `https://phasezehn.onrender.com`, die jeder von überall öffnen kann.
+
+Hinweis: Der kostenlose Plan „schläft" nach Inaktivität – der erste
+Aufruf nach einer Pause dauert ~30–50 Sek., danach läuft alles flüssig.
+
+> Alternativen: Railway oder Fly.io funktionieren genauso (Standard-
+> Node-Server, liest `PORT` aus der Umgebung).
 
 ## Spielregeln (Kurzfassung)
 
