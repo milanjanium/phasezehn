@@ -10,10 +10,15 @@ if (!playerId) {
   localStorage.setItem('p10-id', playerId);
 }
 let myName = localStorage.getItem('p10-name') || '';
-let myRoom = localStorage.getItem('p10-room') || null;
+// Der aktive Raum wird NUR im Speicher gehalten (nicht in localStorage):
+// So startet ein Seiten-Neuladen immer frisch auf dem Login und man kann
+// einen neuen Raum erstellen. Der Auto-Rejoin (siehe unten) greift nur bei
+// echten Verbindungsabbrüchen, während die Seite geöffnet bleibt.
+let myRoom = null;
+localStorage.removeItem('p10-room'); // alte, evtl. gespeicherte Werte entfernen
 
-function rememberRoom(code) { myRoom = code; localStorage.setItem('p10-room', code); }
-function forgetRoom() { myRoom = null; localStorage.removeItem('p10-room'); }
+function rememberRoom(code) { myRoom = code; }
+function forgetRoom() { myRoom = null; }
 
 let state = null;          // letzter Serverzustand
 let mode = 'idle';         // 'idle' | 'lay' | 'hit'
@@ -73,13 +78,17 @@ $('btn-leave').onclick = () => {
 };
 
 // ---------- Automatisch wieder verbinden ----------
-// Nach Reload oder kurzem Verbindungsabbruch zurück in den Raum.
+// Nur bei einer echten Wiederverbindung (Netz-Wackler, während die Seite offen
+// bleibt) zurück in den Raum. Beim ersten Laden/Neuladen NICHT – dann bleibt
+// man auf dem Login und kann einen neuen Raum erstellen oder beitreten.
+let hasConnectedOnce = false;
 socket.on('connect', () => {
-  if (myRoom && myName) {
+  if (hasConnectedOnce && myRoom && myName) {
     socket.emit('joinRoom', { code: myRoom, name: myName, playerId }, (res) => {
-      if (res && res.error) { forgetRoom(); show('screen-login'); $('login-error').textContent = res.error; }
+      if (res && res.error) forgetRoom();
     });
   }
+  hasConnectedOnce = true;
 });
 
 // ---------- Sortieren ----------
