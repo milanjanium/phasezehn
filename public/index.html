@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Phase 10 – Online</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ===== Login ===== -->
+  <section id="screen-login" class="screen active">
+    <div class="card-panel">
+      <h1 class="logo">PHASE<span>10</span></h1>
+      <p class="subtitle">Online mit Freunden – jeder an seinem Gerät</p>
+
+      <label>Dein Name</label>
+      <input id="input-name" type="text" placeholder="z.B. Milan" maxlength="20" autocomplete="off" />
+
+      <button id="btn-create" class="btn primary">Neuen Raum erstellen</button>
+
+      <div class="divider"><span>oder</span></div>
+
+      <label>Raum-Code</label>
+      <input id="input-code" type="text" placeholder="z.B. AB12" maxlength="4" autocomplete="off" style="text-transform:uppercase" />
+      <button id="btn-join" class="btn">Raum beitreten</button>
+
+      <p id="login-error" class="error"></p>
+    </div>
+  </section>
+
+  <!-- ===== Lobby ===== -->
+  <section id="screen-lobby" class="screen">
+    <div class="card-panel">
+      <h2>Warteraum</h2>
+      <p class="room-code-label">Raum-Code</p>
+      <div id="lobby-code" class="room-code">----</div>
+      <p class="hint">Teile diesen Code – Mitspieler geben ihn beim Beitreten ein.</p>
+
+      <h3>Spieler</h3>
+      <ul id="lobby-players" class="player-list"></ul>
+
+      <button id="btn-start" class="btn primary">Spiel starten</button>
+      <p id="lobby-hint" class="hint"></p>
+    </div>
+  </section>
+
+  <!-- ===== Spiel ===== -->
+  <section id="screen-game" class="screen">
+    <div class="game-wrap">
+      <div class="game-top">
+        <div id="turn-banner" class="turn-banner"></div>
+        <div id="opponents" class="opponents"></div>
+      </div>
+
+      <div class="game-mid">
+        <div class="phase-target">
+          <span class="lbl">Deine Phase</span>
+          <div class="phase-row">
+            <span id="my-phase-num" class="phase-num">1</span>
+            <span id="my-phase-desc" class="phase-desc"></span>
+          </div>
+          <div id="phase-pips" class="phase-pips"></div>
+        </div>
+        <div class="piles">
+          <div id="draw-pile" class="pile draw">
+            <div class="card back"></div>
+            <span id="draw-count" class="pile-count"></span>
+            <span class="pile-label">Nachziehen</span>
+          </div>
+          <div id="discard-pile" class="pile discard">
+            <div id="discard-card" class="card empty"></div>
+            <span class="pile-label">Ablage</span>
+          </div>
+        </div>
+        <div id="action-log" class="action-log"></div>
+      </div>
+
+      <div id="melds-table" class="melds-table"></div>
+
+      <div class="game-bottom">
+        <div id="build-area" class="build-area hidden"></div>
+        <div class="hand-header">
+          <span>Deine Karten (<span id="hand-count">0</span>)</span>
+          <button id="btn-sort" class="btn tiny">Sortieren</button>
+        </div>
+        <div id="my-hand" class="hand"></div>
+        <div id="controls" class="controls"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Overlays ===== -->
+  <div id="overlay" class="overlay hidden">
+    <div class="overlay-box">
+      <h2 id="overlay-title"></h2>
+      <div id="overlay-body"></div>
+      <div id="overlay-actions"></div>
+    </div>
+  </div>
+
+  <button id="btn-leave" class="btn-leave hidden">↩ Verlassen</button>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="client.js"></script>
+</body>
+</html>
