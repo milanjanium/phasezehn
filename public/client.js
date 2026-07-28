@@ -43,13 +43,40 @@ function toast(msg, info) {
   toast._t = setTimeout(() => { t.className = 'toast'; }, 2600);
 }
 
+// ---------- Verbindungsstatus ----------
+// Zeigt an, ob die Echtzeit-Verbindung steht. Beim ersten Öffnen der
+// deployten Seite braucht der Server evtl. einen Moment zum Hochfahren –
+// erst dann lassen sich Räume erstellen/beitreten. Buttons bleiben so
+// lange deaktiviert und der Status erklärt die Wartezeit.
+function setConn(connected) {
+  const el = $('conn-status');
+  $('btn-create').disabled = !connected;
+  $('btn-join').disabled = !connected;
+  if (connected) {
+    el.className = 'conn-status'; el.textContent = '';
+  } else {
+    el.className = 'conn-status wait';
+    el.textContent = '● Verbindung zum Server wird hergestellt … (kann beim ersten Aufruf ~30 Sek. dauern)';
+  }
+}
+socket.on('connect', () => setConn(true));
+socket.on('disconnect', () => setConn(false));
+socket.on('connect_error', () => setConn(false));
+if (socket.io) socket.io.on('reconnect_attempt', () => setConn(false));
+setConn(socket.connected);
+
 // ---------- Login ----------
 $('input-name').value = myName;
 $('btn-create').onclick = () => {
   const name = $('input-name').value.trim();
   if (!name) return ($('login-error').textContent = 'Bitte gib einen Namen ein.');
+  if (!socket.connected) return ($('login-error').textContent = 'Verbindung wird noch hergestellt – gleich nochmal versuchen.');
   myName = name; localStorage.setItem('p10-name', name);
-  socket.emit('createRoom', { name, playerId }, (res) => {
+  $('login-error').textContent = '';
+  setBusy('btn-create', true);
+  socket.timeout(9000).emit('createRoom', { name, playerId }, (err, res) => {
+    setBusy('btn-create', false);
+    if (err) return ($('login-error').textContent = 'Server antwortet nicht. Bitte erneut versuchen (Dienst startet evtl. gerade).');
     if (res.error) return ($('login-error').textContent = res.error);
     if (res.ok) rememberRoom(res.code);
   });
@@ -59,12 +86,24 @@ $('btn-join').onclick = () => {
   const code = $('input-code').value.trim().toUpperCase();
   if (!name) return ($('login-error').textContent = 'Bitte gib einen Namen ein.');
   if (!code) return ($('login-error').textContent = 'Bitte gib einen Raum-Code ein.');
+  if (!socket.connected) return ($('login-error').textContent = 'Verbindung wird noch hergestellt – gleich nochmal versuchen.');
   myName = name; localStorage.setItem('p10-name', name);
-  socket.emit('joinRoom', { code, name, playerId }, (res) => {
+  $('login-error').textContent = '';
+  setBusy('btn-join', true);
+  socket.timeout(9000).emit('joinRoom', { code, name, playerId }, (err, res) => {
+    setBusy('btn-join', false);
+    if (err) return ($('login-error').textContent = 'Server antwortet nicht. Bitte erneut versuchen (Dienst startet evtl. gerade).');
     if (res.error) return ($('login-error').textContent = res.error);
     if (res.ok) rememberRoom(res.code);
   });
 };
+
+// Button während einer laufenden Anfrage kurz sperren
+function setBusy(id, busy) {
+  const b = $(id);
+  if (busy) { b.dataset.label = b.textContent; b.textContent = '…'; b.disabled = true; }
+  else { if (b.dataset.label) b.textContent = b.dataset.label; b.disabled = !socket.connected; }
+}
 
 // ---------- Lobby ----------
 $('btn-start').onclick = () => socket.emit('startGame');

@@ -81,6 +81,17 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
 .btn:active { transform: scale(.97); }
 .btn.primary { background: linear-gradient(120deg, var(--accent2), var(--accent)); border: none; box-shadow: 0 6px 18px rgba(74,107,255,.35); }
 .btn.primary:disabled { opacity: .45; cursor: default; box-shadow: none; filter: none; }
+.btn:disabled { opacity: .45; cursor: default; filter: none; }
+
+/* Verbindungsstatus auf dem Login */
+.conn-status { min-height: 0; margin: 0; text-align: center; font-size: 13px; transition: all .2s; }
+.conn-status.wait {
+  margin: 4px 0 14px; padding: 10px 12px; min-height: auto;
+  background: rgba(224,164,0,.12); border: 1px solid rgba(224,164,0,.35);
+  border-radius: 11px; color: var(--gold); font-weight: 600;
+  animation: connBlink 1.4s ease-in-out infinite;
+}
+@keyframes connBlink { 0%,100% { opacity: 1; } 50% { opacity: .6; } }
 .btn.tiny { width: auto; padding: 7px 14px; font-size: 13px; margin: 0; }
 .btn.danger { background: linear-gradient(120deg,#c33,#e5484d); border: none; }
 .btn.good { background: linear-gradient(120deg,#1e9e56,#2fbf6b); border: none; box-shadow: 0 6px 18px rgba(47,191,107,.3); }
