@@ -99,7 +99,7 @@ $('btn-join').onclick = () => {
     setBusy('btn-join', false);
     if (err) return ($('login-error').textContent = 'Server antwortet nicht. Bitte erneut versuchen (Dienst startet evtl. gerade).');
     if (res.error) return ($('login-error').textContent = res.error);
-    if (res.ok) rememberRoom(res.code);
+    if (res.ok) { rememberRoom(res.code); if (res.spectator) toast('Spiel läuft – du beobachtest als Zuschauer.', true); }
   });
 };
 
@@ -129,7 +129,7 @@ function rejoinGame() {
   socket.timeout(9000).emit('joinRoom', { code: myRoom, name: myName, playerId }, (err, res) => {
     if (err) return ($('login-error').textContent = 'Server antwortet nicht. Bitte erneut versuchen (Dienst startet evtl. gerade).');
     if (res.error) { forgetRoom(); return ($('login-error').textContent = res.error); }
-    if (res.ok) rememberRoom(res.code);
+    if (res.ok) { rememberRoom(res.code); if (res.spectator) toast('Spiel läuft – du beobachtest als Zuschauer.', true); }
   });
 }
 renderRejoin();
@@ -160,13 +160,21 @@ socket.on('connect', () => {
 });
 
 // ---------- Sortieren (bleibt aktiv, setzt sich nicht mehr zurück) ----------
+// In Farb-/Farbfolge-Phasen nach Farbe, sonst nach Zahl sortieren.
+const COLOR_ORDER = { red: 0, yellow: 1, green: 2, violet: 3 };
+function phaseWantsColor() {
+  const ph = state.phases && state.phases[state.myPhaseIndex];
+  return !!(ph && ph.groups.some(g => g.type === 'color' || g.type === 'colorrun'));
+}
 function sortedHand() {
   if (!autoSort) return state.myHand;
-  const order = (c) => (typeof c.value === 'number' ? c.value : c.value === 'joker' ? 100 : 200);
+  const numOrder = (c) => (typeof c.value === 'number' ? c.value : c.value === 'joker' ? 100 : 200);
+  const colOrder = (c) => (c.color != null ? COLOR_ORDER[c.color] : (c.value === 'joker' ? 90 : 100));
+  const byColor = phaseWantsColor();
   return [...state.myHand].sort((a, b) =>
-    order(a) - order(b) ||
-    String(a.color).localeCompare(String(b.color)) ||
-    String(a.range || '').localeCompare(String(b.range || '')));
+    byColor
+      ? (colOrder(a) - colOrder(b) || numOrder(a) - numOrder(b))
+      : (numOrder(a) - numOrder(b) || colOrder(a) - colOrder(b)));
 }
 function updateSortBtn() {
   const b = $('btn-sort');
@@ -211,6 +219,15 @@ function updateRoomBadge() {
 //  Socket-Events
 // ============================================================
 socket.on('errorMsg', (m) => toast(m));
+
+// Aussetzen: großer roter Vollbild-Hinweis für 5 Sekunden
+socket.on('skipNotice', ({ by }) => {
+  const el = $('skip-notice');
+  el.textContent = `${by} lässt dich aussetzen!`;
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 5000);
+});
 
 socket.on('state', (s) => {
   const prevStarted = state && state.started;
@@ -342,18 +359,23 @@ function renderGame() {
   // Zug-Banner
   const banner = $('turn-banner');
   const turnP = state.players.find(p => p.id === state.turnPlayerId);
-  if (isMyTurn()) {
+  if (state.spectator) {
+    banner.classList.remove('my-turn');
+    banner.textContent = '👁 Zuschauer' + (turnP ? ` – ${turnP.name} ist am Zug` : '');
+  } else if (isMyTurn()) {
     banner.classList.add('my-turn');
     banner.textContent = state.myHasDrawn ? '● Du bist dran – lege eine Karte ab' : '● Du bist dran – ziehe eine Karte';
   } else {
     banner.classList.remove('my-turn');
     banner.textContent = turnP ? `${turnP.name} ist am Zug …` : '';
   }
+  // Eigenes Phasen-Panel für Zuschauer ausblenden
+  const pt = document.querySelector('.phase-target'); if (pt) pt.style.display = state.spectator ? 'none' : '';
 
-  // Gegner-Pods
+  // Gegner-Pods (für Zuschauer alle Spieler zeigen)
   const opp = $('opponents'); opp.innerHTML = '';
   for (const p of state.players) {
-    if (p.id === playerId) continue;
+    if (!state.spectator && p.id === playerId) continue;
     const div = document.createElement('div');
     div.className = 'opp' + (p.id === state.turnPlayerId ? ' active' : '');
     div.innerHTML =
@@ -366,6 +388,12 @@ function renderGame() {
        </div>
        <div class="opp-phase">Phase ${p.phase + 1}${p.laidThisRound ? ' <span class="laid-tag">✓ ausgelegt</span>' : ''}${frontTags(p)}</div>`;
     opp.appendChild(div);
+  }
+  // Zuschauer-Anzeige
+  if (state.spectators && state.spectators.length) {
+    const sp = document.createElement('div'); sp.className = 'opp spectators';
+    sp.innerHTML = `<div class="opp-head"><div class="spec-eye">👁</div><div class="opp-info"><div class="name">${state.spectators.length} Zuschauer</div><div class="meta">${state.spectators.map(s => escapeHtml(s.name)).join(', ')}</div></div></div>`;
+    opp.appendChild(sp);
   }
 
   // Eigene Phase + Fortschritt
@@ -484,6 +512,7 @@ function renderControls() {
   const c = $('controls'); c.innerHTML = '';
   const build = $('build-area');
 
+  if (state.spectator) { build.classList.add('hidden'); c.innerHTML = '<p class="hint">👁 Du beobachtest als Zuschauer.</p>'; return; }
   if (!isMyTurn()) { build.classList.add('hidden'); return; }
   if (!state.myHasDrawn) { build.classList.add('hidden'); c.innerHTML = '<p class="hint">Tippe auf „Nachziehen" oder die Ablage.</p>'; return; }
 

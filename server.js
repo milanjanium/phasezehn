@@ -105,12 +105,17 @@ function stateFor(room, playerId) {
     myPendingDraw: me ? me.pendingDraw : null,
     give5: give5Public(room),
     lastAction: room.lastAction || null,
+    spectator: !me && (room.spectators || []).some(s => s.id === playerId),
+    spectators: (room.spectators || []).map(s => ({ name: s.name, connected: s.connected })),
   };
 }
 
 function broadcast(room) {
   for (const p of room.players) {
     if (p.socketId) io.to(p.socketId).emit('state', stateFor(room, p.id));
+  }
+  for (const s of (room.spectators || [])) {
+    if (s.socketId) io.to(s.socketId).emit('state', stateFor(room, s.id));
   }
 }
 
@@ -265,7 +270,7 @@ io.on('connection', (socket) => {
     const room = {
       code, hostId: playerId, players: [], started: false,
       deck: [], discard: [], turnIndex: 0, dealerIndex: 0,
-      skipTargets: new Set(), give5: null, ready: new Set(),
+      skipTargets: new Set(), give5: null, ready: new Set(), spectators: [],
       roundOver: false, gameOver: false, winners: null,
     };
     const p = makePlayer(playerId, name);
@@ -296,15 +301,31 @@ io.on('connection', (socket) => {
       }
     }
     if (p) {
-      // Reconnect
+      // (Wieder-)Beitritt als Spieler
       p.socketId = socket.id; p.connected = true; p.name = name;
-    } else {
-      if (room.started) return cb && cb({ error: 'Das Spiel läuft bereits. Zum Wiedereinstieg denselben Namen wie zuvor verwenden.' });
-      if (room.players.length >= 6) return cb && cb({ error: 'Raum ist voll (max. 6).' });
-      p = makePlayer(playerId, name);
-      p.socketId = socket.id;
-      room.players.push(p);
+      room.spectators = (room.spectators || []).filter(s => s.id !== playerId);
+      joinedRoom = room; selfId = playerId;
+      socket.join(code);
+      cb && cb({ ok: true, code });
+      broadcast(room);
+      return;
     }
+    if (room.started) {
+      // Kein passender Spieler-Name -> als Zuschauer beobachten
+      room.spectators = room.spectators || [];
+      let sp = room.spectators.find(s => s.id === playerId);
+      if (sp) { sp.socketId = socket.id; sp.connected = true; sp.name = name; }
+      else room.spectators.push({ id: playerId, name, socketId: socket.id, connected: true });
+      joinedRoom = room; selfId = playerId;
+      socket.join(code);
+      cb && cb({ ok: true, code, spectator: true });
+      broadcast(room);
+      return;
+    }
+    if (room.players.length >= 6) return cb && cb({ error: 'Raum ist voll (max. 6).' });
+    p = makePlayer(playerId, name);
+    p.socketId = socket.id;
+    room.players.push(p);
     joinedRoom = room; selfId = playerId;
     socket.join(code);
     cb && cb({ ok: true, code });
@@ -532,6 +553,7 @@ io.on('connection', (socket) => {
       if (!target) { me.hand.splice(idx, 0, card); return fail('Wähle einen Spieler, der aussetzen soll.'); }
       room.skipTargets.add(target.id);
       room.lastAction = `${me.name} lässt ${target.name} aussetzen!`;
+      if (target.socketId) io.to(target.socketId).emit('skipNotice', { by: me.name });
       me.hasDrawn = false; advanceTurn(room); broadcast(room);
     } else if (card.value === 'draw2') {
       me.draw2 = true; // ab jetzt 2 ziehen, 1 behalten
@@ -594,6 +616,8 @@ io.on('connection', (socket) => {
   socket.on('leaveRoom', () => {
     const room = joinedRoom;
     if (!room) return;
+    // Zuschauer, der geht
+    if (room.spectators) room.spectators = room.spectators.filter(s => s.id !== selfId);
     const i = room.players.findIndex(pp => pp.id === selfId);
     if (i >= 0) {
       if (room.started) { room.players[i].connected = false; room.players[i].socketId = null; }
@@ -605,7 +629,7 @@ io.on('connection', (socket) => {
       if (next) room.hostId = next.id;
     }
     socket.leave(room.code);
-    if (room.players.length === 0) rooms.delete(room.code);
+    if (room.players.length === 0 && (!room.spectators || room.spectators.length === 0)) rooms.delete(room.code);
     else broadcast(room);
     joinedRoom = null;
   });
@@ -613,18 +637,32 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     const room = joinedRoom;
     if (!room) return;
+    // Zuschauer entfernen (nur diesen Socket)
+    if (room.spectators) {
+      const si = room.spectators.findIndex(s => s.id === selfId && s.socketId === socket.id);
+      if (si >= 0) room.spectators.splice(si, 1);
+    }
     const p = room.players.find(pp => pp.id === selfId);
-    if (p) { p.connected = false; p.socketId = null; }
-    // Räume werden NICHT sofort gelöscht – kurze Verbindungsabbrüche
-    // (Tab-Wechsel, Handy-Sperre, Netz-Wackler) sollen den Raum nicht killen.
-    // Verwaiste Räume werden per Zeitablauf aufgeräumt (siehe unten).
+    // WICHTIG: nur trennen, wenn dieser Socket noch der aktuelle ist. Sonst würde
+    // ein verspäteter Disconnect des alten Sockets eine frische Wiederverbindung
+    // überschreiben (Folge: Spieler scheinbar offline, kann nicht mehr ziehen).
+    if (p && p.socketId === socket.id) {
+      p.connected = false; p.socketId = null;
+      // Host bei Verbindungsverlust an einen verbundenen Spieler übergeben,
+      // damit die anderen normal weiterspielen können.
+      if (room.hostId === p.id) {
+        const next = room.players.find(pp => pp.connected);
+        if (next) room.hostId = next.id;
+      }
+    }
+    // Räume bleiben offen (auch wenn der Host geht); Aufräumen erst per Zeitablauf.
     if (room.players.every(pp => !pp.connected)) room.emptySince = Date.now();
     broadcast(room);
   });
 });
 
-// Verwaiste Räume aufräumen: Raum entfernen, wenn seit 20 Min. niemand mehr verbunden ist.
-const EMPTY_TTL = 20 * 60 * 1000;
+// Verwaiste Räume aufräumen: Raum entfernen, wenn seit 30 Min. niemand mehr verbunden ist.
+const EMPTY_TTL = 30 * 60 * 1000;
 setInterval(() => {
   const now = Date.now();
   for (const [code, room] of rooms) {

@@ -516,6 +516,25 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
 .btn.tiny.active { background: linear-gradient(120deg, var(--accent2), var(--accent)); border-color: transparent; color: #fff; }
 .btn.peek { border-radius: 12px; }
 
+/* Aussetzen: großer roter Vollbild-Hinweis (5 Sek.) */
+.skip-notice {
+  position: fixed; inset: 0; z-index: 90;
+  display: flex; align-items: center; justify-content: center; text-align: center;
+  padding: 24px; background: rgba(120,0,0,.5);
+  color: #fff; font-weight: 900; font-size: clamp(28px, 8vw, 64px); line-height: 1.15;
+  text-shadow: 0 4px 24px rgba(0,0,0,.6);
+  opacity: 0; pointer-events: none; transition: opacity .25s;
+}
+.skip-notice.show { opacity: 1; animation: skipPulse 1s ease-in-out infinite; }
+@keyframes skipPulse {
+  0%,100% { background: rgba(150,10,10,.55); }
+  50% { background: rgba(220,20,20,.7); }
+}
+
+/* Zuschauer-Pod & -Hinweis */
+.opp.spectators { min-width: 150px; border-style: dashed; }
+.spec-eye { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; font-size: 22px; }
+
 /* ============================================================
    Responsive: Tablet
    ============================================================ */
