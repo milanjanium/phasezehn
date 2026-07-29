@@ -73,7 +73,10 @@
             <span class="pile-label">Nachziehen</span>
           </div>
           <div id="discard-pile" class="pile discard">
-            <div id="discard-card" class="card empty"></div>
+            <div class="pile-cards">
+              <div id="discard-second" class="card discard-second hidden"></div>
+              <div id="discard-card" class="card empty"></div>
+            </div>
             <span class="pile-label">Ablage</span>
           </div>
         </div>
@@ -116,7 +119,8 @@
   </div>
   <div id="reconnect-bar" class="reconnect-bar hidden">⚠ Verbindung verloren – versuche neu zu verbinden …</div>
 
-  <div id="skip-notice" class="skip-notice"></div>
+  <div id="skip-notice" class="big-notice red"></div>
+  <div id="card-reveal" class="card-reveal"></div>
 
   <div id="toast" class="toast hidden"></div>
 

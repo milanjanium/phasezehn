@@ -9,7 +9,9 @@ const G = require('./game');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+// Großzügige Ping-Timeouts: toleranter gegenüber kurzen Netz-Wacklern
+// (Handy-Sperre, WLAN-Wechsel), damit die Verbindung nicht ständig abbricht.
+const io = new Server(server, { pingInterval: 25000, pingTimeout: 60000 });
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -96,6 +98,7 @@ function stateFor(room, playerId) {
     players,
     phases: G.PHASES,
     discardTop: room.discard.length ? room.discard[room.discard.length - 1] : null,
+    discardSecond: room.discard.length >= 2 ? room.discard[room.discard.length - 2] : null,
     drawCount: room.deck.length,
     turnPlayerId: room.started && !room.roundOver ? room.players[room.turnIndex].id : null,
     myHand: me ? me.hand : [],
@@ -105,6 +108,7 @@ function stateFor(room, playerId) {
     myPendingDraw: me ? me.pendingDraw : null,
     give5: give5Public(room),
     lastAction: room.lastAction || null,
+    lastFinisher: room.lastFinisher || null,
     spectator: !me && (room.spectators || []).some(s => s.id === playerId),
     spectators: (room.spectators || []).map(s => ({ name: s.name, connected: s.connected })),
   };
@@ -120,6 +124,11 @@ function broadcast(room) {
 }
 
 function currentPlayer(room) { return room.players[room.turnIndex]; }
+
+// Zeigt einem Spieler die gerade gezogene Karte kurz groß an (Client-Animation).
+function reveal(player, card, caption) {
+  if (player && player.socketId) io.to(player.socketId).emit('cardReveal', { card, caption: caption || '' });
+}
 
 // ---- Runde starten / austeilen ----
 function startRound(room) {
@@ -149,10 +158,18 @@ function startRound(room) {
   room.ready = new Set();
   room.roundOver = false;
   room.lastAction = null;
+  room.lastFinisher = null;
+  room.roundNo = (room.roundNo || 0) + 1; // 1 = erste Runde
+  room.tookTurn = new Set();              // wer in dieser Runde schon dran war
 
   // Startspieler rotiert pro Runde
   room.turnIndex = room.dealerIndex % room.players.length;
   room.players[room.turnIndex].hasDrawn = false;
+}
+
+// In Runde 1 darf niemand rausgehen, bis jeder einmal dran war (Ausgesetzte zählen als dran).
+function round1BlocksOut(room) {
+  return room.roundNo === 1 && !room.players.every(p => room.tookTurn && room.tookTurn.has(p.id));
 }
 
 function replenishDeckIfNeeded(room) {
@@ -165,12 +182,15 @@ function replenishDeckIfNeeded(room) {
 
 function advanceTurn(room) {
   const n = room.players.length;
+  // Der Spieler, der gerade fertig ist, war dran.
+  if (room.tookTurn) room.tookTurn.add(room.players[room.turnIndex].id);
   let idx = room.turnIndex;
   for (let step = 0; step < n * 2; step++) {
     idx = (idx + 1) % n;
     const p = room.players[idx];
     if (room.skipTargets.has(p.id)) {
       room.skipTargets.delete(p.id);
+      if (room.tookTurn) room.tookTurn.add(p.id); // Ausgesetzte zählen als "dran gewesen"
       continue; // dieser Spieler setzt aus
     }
     break;
@@ -243,6 +263,7 @@ function endRound(room, goneOutPlayer) {
     }
   }
   room.lastAction = `${goneOutPlayer.name} hat die Runde beendet!`;
+  room.lastFinisher = goneOutPlayer.id;
 
   // Spielende? Mindestens ein Spieler hat Phase 10 abgeschlossen
   const finishers = room.players.filter(p => p.finishedGame);
@@ -378,9 +399,16 @@ io.on('connection', (socket) => {
       const top = room.discard[room.discard.length - 1];
       if (!top) return fail('Ablagestapel ist leer.');
       if (G.isAction(top)) return fail('Diese Karte darf nicht aufgenommen werden.');
-      me.hand.push(room.discard.pop());
-      me.hasDrawn = true;
-      room.lastAction = `${me.name} hat vom Ablagestapel gezogen.`;
+      if (me.draw2 && room.discard.length >= 2 && !G.isAction(room.discard[room.discard.length - 2])) {
+        // "Nimm zwei!" von der Ablage: die obersten zwei Karten, eine behalten
+        const two = [room.discard.pop(), room.discard.pop()];
+        me.pendingDraw = two;
+        room.lastAction = `${me.name} zieht zwei von der Ablage (Nimm zwei!).`;
+      } else {
+        me.hand.push(room.discard.pop());
+        me.hasDrawn = true;
+        room.lastAction = `${me.name} hat vom Ablagestapel gezogen.`;
+      }
     } else {
       // "Nimm zwei!": zwei Karten ziehen, eine behalten
       if (me.draw2) {
@@ -392,14 +420,16 @@ io.on('connection', (socket) => {
           two.push(room.deck.shift());
         }
         if (two.length === 0) return fail('Keine Karten mehr.');
-        if (two.length === 1) { me.hand.push(two[0]); me.hasDrawn = true; }
+        if (two.length === 1) { me.hand.push(two[0]); me.hasDrawn = true; reveal(me, two[0]); }
         else { me.pendingDraw = two; }
         room.lastAction = `${me.name} zieht zwei Karten (Nimm zwei!).`;
       } else {
         replenishDeckIfNeeded(room);
         if (room.deck.length === 0) return fail('Keine Karten mehr.');
-        me.hand.push(room.deck.shift());
+        const c = room.deck.shift();
+        me.hand.push(c);
         me.hasDrawn = true;
+        reveal(me, c); // gezogene Karte kurz groß zeigen
         room.lastAction = `${me.name} hat eine Karte gezogen.`;
       }
     }
@@ -486,7 +516,12 @@ io.on('connection', (socket) => {
       cards.push(handById.get(id));
     }
     if (cards.length === 0) return fail('Keine Karten gewählt.');
-    if (me.hand.length - cards.length < 1) return fail('Du musst eine Karte zum Ablegen behalten.');
+    const keepMin = round1BlocksOut(room) ? 2 : 1; // Runde 1: nicht bis 1 Karte runter (sonst kein Zugende)
+    if (me.hand.length - cards.length < keepMin) {
+      return fail(round1BlocksOut(room)
+        ? 'In der ersten Runde darf noch niemand rausgehen – erst wenn alle einmal dran waren.'
+        : 'Du musst eine Karte zum Ablegen behalten.');
+    }
 
     const group = target.laidGroups[groupIndex];
     if (!G.canHit(group, cards)) return fail('Karten passen nicht an diese Auslage.');
@@ -509,6 +544,7 @@ io.on('connection', (socket) => {
     if (idx === -1) return fail('Karte nicht auf der Hand.');
     const card = me.hand[idx];
     if (G.isAction(card)) return fail('Aktionskarten werden gespielt, nicht abgelegt.');
+    if (me.hand.length === 1 && round1BlocksOut(room)) return fail('In der ersten Runde darf noch niemand rausgehen – erst wenn alle einmal dran waren.');
 
     me.hand.splice(idx, 1);
     room.discard.push(card);
@@ -520,6 +556,30 @@ io.on('connection', (socket) => {
       return;
     }
     room.lastAction = `${me.name} hat abgelegt.`;
+    advanceTurn(room);
+    broadcast(room);
+  });
+
+  // ---- Aktionskarte verfallen lassen (statt spielen) ----
+  socket.on('discardAction', ({ cardId }) => {
+    const room = joinedRoom;
+    if (!room || !room.started || room.roundOver) return;
+    if (room.give5) return fail('Bitte zuerst „Give me Five!" abschließen.');
+    const me = currentPlayer(room);
+    if (me.id !== selfId) return fail('Du bist nicht am Zug.');
+    if (me.pendingDraw) return fail('Wähle zuerst eine der beiden Karten.');
+    if (!me.hasDrawn) return fail('Erst ziehen.');
+    const idx = me.hand.findIndex(c => c.id === cardId);
+    if (idx === -1) return fail('Karte nicht auf der Hand.');
+    const card = me.hand[idx];
+    if (!G.isAction(card)) return fail('Das ist keine Aktionskarte.');
+    if (me.hand.length === 1 && round1BlocksOut(room)) return fail('In der ersten Runde darf noch niemand rausgehen – erst wenn alle einmal dran waren.');
+
+    const label = { skip: 'Aussetzen', draw2: 'Nimm zwei', keepall: 'Alles meins', give5: 'Give me Five' }[card.value] || 'Aktion';
+    me.hand.splice(idx, 1);
+    me.hasDrawn = false;
+    if (me.hand.length === 0) { endRound(room, me); broadcast(room); return; }
+    room.lastAction = `${me.name} lässt „${label}" verfallen.`;
     advanceTurn(room);
     broadcast(room);
   });
@@ -540,6 +600,7 @@ io.on('connection', (socket) => {
 
     // Letzte Handkarte: wirkungslos gespielt, Durchgang endet.
     const isLast = me.hand.length === 1;
+    if (isLast && round1BlocksOut(room)) return fail('In der ersten Runde darf noch niemand rausgehen – erst wenn alle einmal dran waren.');
     me.hand.splice(idx, 1);
 
     if (isLast) {
@@ -598,7 +659,11 @@ io.on('connection', (socket) => {
     // Besitzer der genommenen Karte erhält Ersatz vom Nachziehstapel
     const owner = room.players.find(p => p.id === chosen.playerId);
     replenishDeckIfNeeded(room);
-    if (owner && room.deck.length) owner.hand.push(room.deck.shift());
+    if (owner && room.deck.length) {
+      const rep = room.deck.shift();
+      owner.hand.push(rep);
+      reveal(owner, rep, `${asker.name} hat dir eine Karte genommen – du ziehst nach:`);
+    }
     // restliche angebotene Karten zurück auf die Hand
     g.offers.forEach((o, i) => {
       if (i === oi) return;

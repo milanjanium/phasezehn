@@ -282,10 +282,6 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
   box-shadow: 4px 4px 0 rgba(20,30,55,.9), 8px 8px 0 rgba(16,24,44,.85), 0 12px 22px rgba(0,0,0,.45);
   position: relative;
 }
-.card.back::after {
-  content: '10'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-  font-size: calc(var(--card-w) * .4); font-weight: 900; color: rgba(255,255,255,.22);
-}
 .card.empty { background: rgba(255,255,255,.05); border: 2px dashed rgba(255,255,255,.2); box-shadow: none; }
 .card.small { width: 34px; height: 50px; border-radius: 6px; box-shadow: 0 2px 5px rgba(0,0,0,.35); }
 .card.small .c-center { font-size: 17px; }
@@ -516,20 +512,48 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
 .btn.tiny.active { background: linear-gradient(120deg, var(--accent2), var(--accent)); border-color: transparent; color: #fff; }
 .btn.peek { border-radius: 12px; }
 
-/* Aussetzen: großer roter Vollbild-Hinweis (5 Sek.) */
-.skip-notice {
+/* Großer Vollbild-Hinweis (rot = Aussetzen, grün = Runde beendet) */
+.big-notice {
   position: fixed; inset: 0; z-index: 90;
   display: flex; align-items: center; justify-content: center; text-align: center;
-  padding: 24px; background: rgba(120,0,0,.5);
-  color: #fff; font-weight: 900; font-size: clamp(28px, 8vw, 64px); line-height: 1.15;
+  padding: 24px; color: #fff; font-weight: 900; font-size: clamp(30px, 8vw, 66px); line-height: 1.15;
   text-shadow: 0 4px 24px rgba(0,0,0,.6);
   opacity: 0; pointer-events: none; transition: opacity .25s;
 }
-.skip-notice.show { opacity: 1; animation: skipPulse 1s ease-in-out infinite; }
-@keyframes skipPulse {
-  0%,100% { background: rgba(150,10,10,.55); }
-  50% { background: rgba(220,20,20,.7); }
+.big-notice.show { opacity: 1; }
+.big-notice.red.show { animation: bnRed 1s ease-in-out infinite; }
+.big-notice.green.show { animation: bnGreen 1s ease-in-out infinite; }
+@keyframes bnRed { 0%,100% { background: rgba(150,10,10,.55); } 50% { background: rgba(220,20,20,.72); } }
+@keyframes bnGreen { 0%,100% { background: rgba(15,120,55,.55); } 50% { background: rgba(30,180,90,.72); } }
+
+/* Nachzieh-Reveal: gezogene Karte kurz groß in der Mitte */
+.card-reveal {
+  position: fixed; inset: 0; z-index: 92; pointer-events: none;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+  background: rgba(6,10,20,0); opacity: 0; transition: opacity .2s;
 }
+.card-reveal.show { opacity: 1; background: rgba(6,10,20,.55); }
+.card-reveal .reveal-cap { color: #fff; font-weight: 800; font-size: clamp(16px, 4vw, 24px); text-align: center; padding: 0 20px; text-shadow: 0 2px 10px rgba(0,0,0,.6); }
+.card-reveal .reveal-card {
+  --card-w: clamp(140px, 44vw, 200px); --card-h: clamp(200px, 63vw, 286px);
+  width: var(--card-w); height: var(--card-h);
+  transform: scale(.4) rotateY(90deg); opacity: 0;
+}
+.card-reveal.show .reveal-card { animation: revealIn .5s cubic-bezier(.2,.9,.3,1.3) forwards; }
+@keyframes revealIn {
+  0% { transform: scale(.4) rotateY(90deg); opacity: 0; }
+  60% { transform: scale(1.06) rotateY(0deg); opacity: 1; }
+  100% { transform: scale(1) rotateY(0deg); opacity: 1; }
+}
+
+/* Zweite Ablagekarte als Vorschau (leicht versetzt hinter der obersten) */
+.pile-cards { position: relative; display: inline-block; }
+.discard-second {
+  position: absolute; top: -8px; left: -16px; z-index: 0;
+  transform: scale(.86); filter: brightness(.72) saturate(.9);
+  box-shadow: 0 2px 8px rgba(0,0,0,.5);
+}
+#discard-card { position: relative; z-index: 1; }
 
 /* Zuschauer-Pod & -Hinweis */
 .opp.spectators { min-width: 150px; border-style: dashed; }

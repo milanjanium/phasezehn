@@ -1,7 +1,13 @@
 // ============================================================
 //  Phase 10 – Client
 // ============================================================
-const socket = io();
+const socket = io({
+  reconnection: true,
+  reconnectionAttempts: Infinity,
+  reconnectionDelay: 400,
+  reconnectionDelayMax: 3000,
+  timeout: 20000,
+});
 
 // Dauerhafte Spieler-ID pro Gerät (= "Login")
 let playerId = localStorage.getItem('p10-id');
@@ -220,17 +226,33 @@ function updateRoomBadge() {
 // ============================================================
 socket.on('errorMsg', (m) => toast(m));
 
-// Aussetzen: großer roter Vollbild-Hinweis für 5 Sekunden
-socket.on('skipNotice', ({ by }) => {
+// Großer Vollbild-Hinweis (rot/grün)
+function showBigNotice(text, color, ms) {
   const el = $('skip-notice');
-  el.textContent = `${by} lässt dich aussetzen!`;
-  el.classList.add('show');
+  el.textContent = text;
+  el.className = 'big-notice ' + (color || 'red') + ' show';
   clearTimeout(el._t);
-  el._t = setTimeout(() => el.classList.remove('show'), 5000);
-});
+  el._t = setTimeout(() => { el.className = 'big-notice ' + (color || 'red'); }, ms || 5000);
+}
+// Aussetzen: großer roter Hinweis für 5 Sekunden
+socket.on('skipNotice', ({ by }) => showBigNotice(`${by} lässt dich aussetzen!`, 'red', 5000));
+
+// Gezogene Karte kurz groß anzeigen (Nachzieh-Animation)
+socket.on('cardReveal', ({ card, caption }) => showCardReveal(card, caption));
+function showCardReveal(card, caption) {
+  const ov = $('card-reveal');
+  ov.innerHTML = '';
+  if (caption) { const cap = document.createElement('div'); cap.className = 'reveal-cap'; cap.textContent = caption; ov.appendChild(cap); }
+  const big = cardEl(card); big.classList.add('reveal-card');
+  ov.appendChild(big);
+  ov.classList.add('show');
+  clearTimeout(ov._t);
+  ov._t = setTimeout(() => ov.classList.remove('show'), caption ? 2200 : 1300);
+}
 
 socket.on('state', (s) => {
   const prevStarted = state && state.started;
+  const prevRoundOver = state && state.roundOver;
   state = s;
 
   if (!s.started) { show('screen-lobby'); renderLobby(); updateRoomBadge(); return; }
@@ -239,6 +261,15 @@ socket.on('state', (s) => {
   show('screen-game');
   updateRoomBadge();
   renderGame();
+
+  // Runde gerade beendet -> großer Hinweis (grün beim Beender)
+  if (s.roundOver && !prevRoundOver && !s.gameOver) {
+    if (s.lastFinisher === playerId) showBigNotice('Du hast die Runde beendet!', 'green', 3000);
+    else {
+      const fin = s.players.find(p => p.id === s.lastFinisher);
+      showBigNotice(`${fin ? fin.name : 'Jemand'} hat die Runde beendet`, 'green', 3000);
+    }
+  }
 
   if (s.gameOver) return renderGameOver();
   if (s.roundOver) return renderRoundOver();
@@ -413,8 +444,18 @@ function renderGame() {
   const dc = $('discard-card');
   if (state.discardTop) {
     const el = cardEl(state.discardTop);
-    dc.className = el.className; dc.innerHTML = el.innerHTML;
-  } else { dc.className = 'card empty'; dc.innerHTML = ''; }
+    dc.className = el.className; dc.innerHTML = el.innerHTML; dc.style.cssText = el.style.cssText;
+  } else { dc.className = 'card empty'; dc.innerHTML = ''; dc.style.cssText = ''; }
+  // Zweite Ablagekarte (Vorschau, damit man für „Nimm zwei" entscheiden kann)
+  const ds = $('discard-second');
+  if (ds) {
+    if (state.discardSecond) {
+      const el2 = cardEl(state.discardSecond);
+      ds.style.cssText = el2.style.cssText;
+      ds.className = el2.className + ' discard-second';
+      ds.innerHTML = el2.innerHTML;
+    } else { ds.className = 'card discard-second hidden'; ds.innerHTML = ''; ds.style.cssText = ''; }
+  }
 
   $('action-log').textContent = state.lastAction || '';
 
@@ -454,6 +495,9 @@ function renderHand() {
   const hand = $('my-hand'); hand.innerHTML = '';
   $('hand-count').textContent = state.myHand.length;
   const usedInBuild = new Set(buildGroups.flat());
+  // Auswahl bereinigen: Karten, die nicht mehr auf der Hand sind (z.B. gerade
+  // angelegt), werden automatisch abgewählt – so kann man weiter anlegen.
+  for (const id of [...selected]) if (!state.myHand.some(c => c.id === id)) selected.delete(id);
 
   for (const card of sortedHand()) {
     const el = cardEl(card);
@@ -522,9 +566,18 @@ function renderControls() {
     if (state.myLaidThisRound) c.appendChild(btn('Anlegen', '', startHit));
     const sel = selected.size === 1 ? state.myHand.find(x => x.id === [...selected][0]) : null;
     const actSel = sel && isActionCard(sel);
-    const b = btn(actSel ? '▶ Aktion spielen' : 'Karte ablegen', 'good', doDiscard);
-    b.disabled = selected.size !== 1;
-    c.appendChild(b);
+    if (actSel) {
+      // Aktionskarte: entweder spielen oder verfallen lassen (für alle sichtbar)
+      c.appendChild(btn('▶ Aktion spielen', 'good', () => endTurnWithCard(sel.id)));
+      c.appendChild(btn('Karte verfallen lassen', 'danger', () => {
+        socket.emit('discardAction', { cardId: sel.id });
+        selected.clear(); lastTap = { id: null, t: 0 };
+      }));
+    } else {
+      const b = btn('Karte ablegen', 'good', doDiscard);
+      b.disabled = selected.size !== 1;
+      c.appendChild(b);
+    }
     const hint = document.createElement('p'); hint.className = 'hint';
     hint.textContent = 'Tipp: Karte doppelt tippen legt sie sofort ab.';
     c.appendChild(hint);
@@ -609,8 +662,10 @@ function startHit() {
 }
 function doHit(targetId, groupIndex) {
   if (selected.size === 0) return toast('Wähle zuerst Karten aus deiner Hand.');
+  // Auswahl NICHT sofort leeren: erfolgreich angelegte Karten verschwinden aus
+  // der Hand und werden in renderHand automatisch abgewählt; bei Fehlschlag
+  // bleibt die Auswahl erhalten, sodass man mehrfach/anders anlegen kann.
   socket.emit('hit', { targetId, groupIndex, cardIds: [...selected] });
-  selected.clear();
 }
 
 // ---------- Ablegen / Aktion spielen ----------
