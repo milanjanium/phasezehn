@@ -242,51 +242,40 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
 .card {
   width: var(--card-w); height: var(--card-h);
   border-radius: calc(var(--card-w) * .14);
-  background: linear-gradient(160deg, #ffffff 0%, #eef1f8 100%);
-  color: #1a2233;
+  background: #2a3350;
+  color: #fff;
   display: flex; align-items: center; justify-content: center;
   font-weight: 900; user-select: none; position: relative; overflow: hidden;
-  box-shadow: 0 3px 10px rgba(0,0,0,.4), inset 0 0 0 1px rgba(0,0,0,.06);
+  box-shadow: 0 3px 10px rgba(0,0,0,.4), inset 0 0 0 1px rgba(255,255,255,.16);
 }
-.card .c-center { font-size: calc(var(--card-w) * .58); line-height: 1; z-index: 1; }
+.card .c-center { font-size: calc(var(--card-w) * .58); line-height: 1; z-index: 1; text-shadow: 0 2px 4px rgba(0,0,0,.4); }
 .card .c-idx {
   position: absolute; font-size: calc(var(--card-w) * .24); font-weight: 800; line-height: 1; z-index: 1;
+  text-shadow: 0 1px 3px rgba(0,0,0,.4);
 }
 .card .c-idx.tl { top: 7%; left: 10%; }
 .card .c-idx.br { bottom: 7%; right: 10%; transform: rotate(180deg); }
 .card .c-cap {
-  position: absolute; bottom: 16%; left: 0; right: 0; text-align: center;
+  position: absolute; bottom: 15%; left: 0; right: 0; text-align: center;
   font-size: calc(var(--card-w) * .13); font-weight: 800; letter-spacing: 1.5px; z-index: 1;
+  text-shadow: 0 1px 2px rgba(0,0,0,.45);
 }
 .card .c-gloss {
   position: absolute; inset: 0; z-index: 0; pointer-events: none;
-  background: linear-gradient(135deg, rgba(255,255,255,.65) 0%, rgba(255,255,255,0) 42%);
+  background: linear-gradient(150deg, rgba(255,255,255,.3) 0%, rgba(255,255,255,0) 46%);
 }
 
-.card.red    { color: var(--red); }
-.card.violet { color: #9b51e0; }
-.card.green  { color: var(--green); }
-.card.yellow { color: var(--yellow); }
+/* Zahlenkarten: farbiger Hintergrund, weiße Zahl */
+.card.red    { background: linear-gradient(160deg,#f0575c,#cf3238); }
+.card.green  { background: linear-gradient(160deg,#3ecf7b,#1fa257); }
+.card.violet { background: linear-gradient(160deg,#a870e6,#7f31cf); }
+.card.yellow { background: linear-gradient(160deg,#e7a81c,#a9760a); }
 
-/* Aktionskarten (blau, Master) */
-.card.act { color: #fff; text-shadow: 0 2px 5px rgba(0,0,0,.45); }
-.card.act.skip    { background: linear-gradient(160deg,#2a2f3d,#171a24); }
-.card.act.draw2   { background: linear-gradient(155deg,#2b6fff,#123a99); }
-.card.act.keepall { background: linear-gradient(155deg,#7a4dff,#3d1f8f); }
-.card.act.give5   { background: linear-gradient(155deg,#0aa2c0,#0b5f8f); }
+/* Aktionskarten: alle blau */
+.card.act { background: linear-gradient(158deg,#3b82ff,#1636a8); color: #fff; }
 .card.act .c-center { font-size: calc(var(--card-w) * .46); }
 .card.small.act .c-center { font-size: 15px; }
-.card.wild .c-idx { font-size: calc(var(--card-w) * .18); }
 
-.card.wild {
-  background: linear-gradient(135deg,#ff7ac6,#8a6cff 45%,#4dc6ff 75%,#ffcc4d);
-  color: #fff; text-shadow: 0 2px 6px rgba(0,0,0,.45);
-}
-.card.wild .c-center { font-size: calc(var(--card-w) * .5); }
-.card.skip {
-  background: linear-gradient(160deg,#2a2f3d,#171a24); color: #ff6b6b;
-  box-shadow: 0 3px 10px rgba(0,0,0,.5), inset 0 0 0 1px rgba(255,255,255,.08);
-}
 .card.back {
   background:
     repeating-linear-gradient(45deg, #26407a 0 8px, #1c3160 8px 16px);
@@ -468,46 +457,64 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
   text-shadow: 0 2px 12px rgba(255,204,77,.4);
 }
 
-/* ---- Joker-Karten: Reichweite groß + Farb-Punkte (kein Stern) ---- */
-.card.joker {
-  flex-direction: column;
-  background: linear-gradient(155deg, #303561, #171a2e);
-  color: #fff; box-shadow: 0 3px 10px rgba(0,0,0,.5), inset 0 0 0 1px rgba(255,255,255,.08);
-}
-.card.joker .c-idx { color: rgba(255,255,255,.7); font-weight: 800; }
+/* ---- Joker-Karten: Hintergrund diagonal in den gültigen Farben geteilt ---- */
+.card.joker { flex-direction: column; color: #fff; }
+.card.joker .c-gloss { display: none; }
 .j-label {
-  position: absolute; top: 7%; left: 0; right: 0; text-align: center;
+  position: absolute; top: 8%; left: 0; right: 0; text-align: center;
   font-size: calc(var(--card-w) * .12); letter-spacing: 2px; font-weight: 800;
-  color: rgba(255,255,255,.5);
+  color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.55); z-index: 1;
 }
-.j-range { font-size: calc(var(--card-w) * .34); font-weight: 900; color: #ffd76a; line-height: 1; }
-.j-dots { display: flex; flex-wrap: wrap; gap: calc(var(--card-w) * .05); justify-content: center; margin-top: calc(var(--card-w) * .07); max-width: 82%; }
-.jdot {
-  width: calc(var(--card-w) * .16); height: calc(var(--card-w) * .16); border-radius: 50%;
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,.4);
+.j-pill {
+  z-index: 1; background: rgba(0,0,0,.6); color: #fff; font-weight: 900;
+  padding: calc(var(--card-w) * .04) calc(var(--card-w) * .14);
+  border-radius: 999px; font-size: calc(var(--card-w) * .28);
+  box-shadow: 0 2px 8px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,255,255,.25);
 }
-.jdot.red { background: var(--red); }
-.jdot.yellow { background: var(--yellow); }
-.jdot.green { background: var(--green); }
-.jdot.violet { background: #9b51e0; }
 .j-note {
-  position: absolute; bottom: 6.5%; left: 0; right: 0; text-align: center;
-  font-size: calc(var(--card-w) * .1); color: rgba(255,255,255,.5); padding: 0 4px;
+  position: absolute; bottom: 7%; left: 0; right: 0; text-align: center; z-index: 1;
+  font-size: calc(var(--card-w) * .1); color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.6); padding: 0 4px;
 }
-.card.small.joker { gap: 2px; }
 .card.small .j-label, .card.small .j-note { display: none; }
-.card.small .j-range { font-size: 14px; color: #ffd76a; font-weight: 900; }
-.card.small .j-dots { gap: 2px; margin-top: 3px; }
-.card.small .jdot { width: 7px; height: 7px; }
+.card.small .j-pill { font-size: 12px; padding: 2px 7px; }
 
-/* ---- „Meine Karten ansehen" im Overlay ---- */
+/* ---- „Meine Karten & Auslage" im Overlay ---- */
 .peek-btn { width: auto !important; min-width: 210px; margin: 16px auto 0 !important; display: block; background: var(--panel2); }
-.hand-peek { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; margin-top: 12px; max-height: 32vh; overflow-y: auto; }
+.peek-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin: 14px 0 6px; text-align: left; }
+.hand-peek { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; max-height: 26vh; overflow-y: auto; }
+.peek-melds { display: flex; flex-direction: column; gap: 8px; max-height: 26vh; overflow-y: auto; }
+.peek-meld-block { background: rgba(255,255,255,.04); border-radius: 10px; padding: 7px 9px; }
+.peek-meld-head { font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 5px; text-align: left; }
+.peek-meld-groups { display: flex; flex-wrap: wrap; gap: 10px; }
 
 /* ---- Wiedereinstieg-Box auf dem Login ---- */
 .rejoin-box { margin: 6px 0 2px; }
 .rejoin-box:not(:empty) { padding-bottom: 8px; border-bottom: 1px solid #33436b; margin-bottom: 14px; }
 .rejoin-box .hint { margin: 6px 0 0; }
+
+/* ---- Wertungsblatt ---- */
+.btn-score {
+  position: fixed; top: 12px; right: 132px; z-index: 40;
+  padding: 8px 12px; font-size: 13px; font-weight: 700;
+  background: rgba(9,16,28,.72); color: #fff;
+  border: 1px solid rgba(255,255,255,.15); border-radius: 10px; cursor: pointer;
+  backdrop-filter: blur(4px); transition: filter .15s, transform .06s;
+}
+.btn-score:hover { filter: brightness(1.15); }
+.btn-score:active { transform: scale(.96); }
+.sheet-wrap { overflow-x: auto; margin: 14px 0 6px; -webkit-overflow-scrolling: touch; }
+.sheet-table { border-collapse: collapse; width: 100%; font-size: 14px; }
+.sheet-table th, .sheet-table td { padding: 7px 9px; border-bottom: 1px solid var(--line); text-align: center; white-space: nowrap; }
+.sheet-table th { color: var(--muted); font-size: 12px; font-weight: 700; }
+.sheet-table .pl { text-align: left; }
+.sheet-table .pl .avatar.sm { vertical-align: middle; margin-right: 6px; }
+.sheet-table .tot { font-weight: 900; color: var(--gold); }
+.sheet-table .you-tag { color: var(--gold); font-weight: 600; }
+.ready-status { text-align: center; margin: 10px 0 0; font-size: 14px; }
+
+/* Sortier-Button aktiv */
+.btn.tiny.active { background: linear-gradient(120deg, var(--accent2), var(--accent)); border-color: transparent; color: #fff; }
+.btn.peek { border-radius: 12px; }
 
 /* ============================================================
    Responsive: Tablet

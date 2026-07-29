@@ -26,6 +26,7 @@ let mode = 'idle';         // 'idle' | 'lay' | 'hit'
 let selected = new Set();  // markierte Handkarten
 let lastTap = { id: null, t: 0 }; // für Doppeltipp-Ablegen
 let showHandPeek = false;         // eigene Karten im Auswahl-Overlay einblenden
+let autoSort = localStorage.getItem('p10-sort') !== 'off'; // Sortierung bleibt aktiv
 let buildGroups = [];      // beim Auslegen: Karten-IDs je Anforderung
 let activeGroup = 0;
 
@@ -36,6 +37,7 @@ function show(screen) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   $(screen).classList.add('active');
   $('btn-leave').classList.toggle('hidden', screen === 'screen-login');
+  $('btn-score').classList.toggle('hidden', screen !== 'screen-game');
 }
 
 function toast(msg, info) {
@@ -157,13 +159,35 @@ socket.on('connect', () => {
   hasConnectedOnce = true;
 });
 
-// ---------- Sortieren ----------
-$('btn-sort').onclick = () => {
-  if (!state) return;
+// ---------- Sortieren (bleibt aktiv, setzt sich nicht mehr zurück) ----------
+function sortedHand() {
+  if (!autoSort) return state.myHand;
   const order = (c) => (typeof c.value === 'number' ? c.value : c.value === 'joker' ? 100 : 200);
-  state.myHand.sort((a, b) => order(a) - order(b) || String(a.color).localeCompare(String(b.color)));
-  renderHand();
+  return [...state.myHand].sort((a, b) =>
+    order(a) - order(b) ||
+    String(a.color).localeCompare(String(b.color)) ||
+    String(a.range || '').localeCompare(String(b.range || '')));
+}
+function updateSortBtn() {
+  const b = $('btn-sort');
+  b.textContent = autoSort ? '🔀 Sortiert' : '🔀 Sortieren';
+  b.classList.toggle('active', autoSort);
+}
+$('btn-sort').onclick = () => {
+  autoSort = !autoSort;
+  localStorage.setItem('p10-sort', autoSort ? 'on' : 'off');
+  updateSortBtn();
+  if (state) renderHand();
 };
+updateSortBtn();
+
+// ---------- Wertungsblatt-Button (Ecke, immer verfügbar) ----------
+$('btn-score').onclick = () => {
+  if (!state) return;
+  const body = $('scoresheet-body'); body.innerHTML = ''; body.appendChild(scoreSheetEl());
+  $('scoresheet').classList.remove('hidden');
+};
+$('scoresheet-close').onclick = () => $('scoresheet').classList.add('hidden');
 
 // ---------- Piles: ziehen ----------
 $('draw-pile').onclick = () => tryDraw('draw');
@@ -225,25 +249,32 @@ function colorFor(name) {
 }
 
 // ---------- Karten ----------
+const CARD_HEX = { red: '#e5484d', yellow: '#e0a400', green: '#2fbf6b', violet: '#9b51e0' };
+function jokerBg(cols) {
+  const cs = (cols || []).map(c => CARD_HEX[c] || '#888');
+  if (cs.length <= 1) return cs[0] || '#555';
+  if (cs.length === 2) return `linear-gradient(135deg, ${cs[0]} 0 50%, ${cs[1]} 50% 100%)`;
+  if (cs.length === 3) return `linear-gradient(135deg, ${cs[0]} 0 33.34%, ${cs[1]} 33.34% 66.67%, ${cs[2]} 66.67% 100%)`;
+  return `linear-gradient(135deg, ${cs[0]} 0 25%, ${cs[1]} 25% 50%, ${cs[2]} 50% 75%, ${cs[3]} 75% 100%)`;
+}
+
 function cardEl(card, small) {
   const d = document.createElement('div');
   const classes = ['card']; if (small) classes.push('small');
 
-  // Joker: Reichweite groß + farbige Punkte (welche Farben er ersetzen darf)
+  // Joker: Hintergrund diagonal in seinen Farben geteilt, Reichweite als Pille
   if (card.value === 'joker') {
     classes.push('joker', card.range === 'lo' ? 'jlo' : 'jhi');
     d.className = classes.join(' ');
+    d.style.background = jokerBg(card.colors);
     const r = card.range === 'lo' ? '1–6' : '7–12';
-    const cols = card.colors || [];
-    const dots = cols.map(c => `<span class="jdot ${c}"></span>`).join('');
     if (small) {
-      d.innerHTML = `<span class="j-range">${r}</span><span class="j-dots">${dots}</span>`;
+      d.innerHTML = `<span class="j-pill">${r}</span>`;
     } else {
       d.innerHTML =
         `<span class="j-label">JOKER</span>` +
-        `<span class="j-range">${r}</span>` +
-        `<span class="j-dots">${dots}</span>` +
-        `<span class="j-note">${cols.length === 4 ? 'alle Farben' : 'nur diese Farben'}</span>`;
+        `<span class="j-pill">${r}</span>` +
+        `<span class="j-note">${(card.colors || []).length === 4 ? 'alle Farben' : 'nur diese Farben'}</span>`;
     }
     return d;
   }
@@ -273,8 +304,8 @@ function isActionCard(card) { return ['skip', 'draw2', 'keepall', 'give5'].inclu
 // kleine Badges für Front-Aktionskarten / Aussetzen-Status
 function frontTags(p) {
   let s = '';
-  if (p.draw2) s += ' <span class="front-tag draw2">+2</span>';
-  if (p.keepAll) s += ' <span class="front-tag keepall">♥ Alles meins</span>';
+  if (p.draw2) s += ' <span class="front-tag draw2">✌️ Nimm zwei</span>';
+  if (p.keepAll) s += ' <span class="front-tag keepall">👍 Alles meins</span>';
   if (p.willSkip) s += ' <span class="front-tag skip">⊘ setzt aus</span>';
   return s;
 }
@@ -396,7 +427,7 @@ function renderHand() {
   $('hand-count').textContent = state.myHand.length;
   const usedInBuild = new Set(buildGroups.flat());
 
-  for (const card of state.myHand) {
+  for (const card of sortedHand()) {
     const el = cardEl(card);
     if (mode === 'lay' && usedInBuild.has(card.id)) el.classList.add('disabled');
     if (selected.has(card.id)) el.classList.add('selected');
@@ -575,16 +606,41 @@ function chooseSkipTarget(cardId) {
   }, []);
 }
 
-// Eigene Handkarten im Overlay ein-/ausblenden (Button)
+// Eigene Handkarten UND die Auslage im Overlay ein-/ausblenden (Button)
 function appendHandPeek(body, rerender) {
-  if (!state || !state.myHand || !state.myHand.length) return;
-  const b = btn(showHandPeek ? '🃏 Karten verbergen' : '🃏 Meine Karten ansehen', 'peek', () => { showHandPeek = !showHandPeek; rerender(); });
+  if (!state) return;
+  const b = btn(showHandPeek ? '🃏 Ansicht schließen' : '🃏 Meine Karten & Auslage', 'peek', () => { showHandPeek = !showHandPeek; rerender(); });
   b.classList.add('peek-btn');
   body.appendChild(b);
-  if (showHandPeek) {
+  if (!showHandPeek) return;
+
+  if (state.myHand && state.myHand.length) {
+    const l = document.createElement('div'); l.className = 'peek-label'; l.textContent = 'Deine Karten'; body.appendChild(l);
     const strip = document.createElement('div'); strip.className = 'hand-peek';
-    state.myHand.forEach(c => strip.appendChild(cardEl(c, true)));
+    sortedHand().forEach(c => strip.appendChild(cardEl(c, true)));
     body.appendChild(strip);
+  }
+
+  const l2 = document.createElement('div'); l2.className = 'peek-label'; l2.textContent = 'Auf dem Tisch'; body.appendChild(l2);
+  const withMelds = state.players.filter(p => p.laidGroups && p.laidGroups.length);
+  if (!withMelds.length) {
+    const e = document.createElement('div'); e.className = 'hint'; e.textContent = 'Noch nichts ausgelegt.'; body.appendChild(e);
+  } else {
+    const wrap = document.createElement('div'); wrap.className = 'peek-melds';
+    withMelds.forEach(p => {
+      const blk = document.createElement('div'); blk.className = 'peek-meld-block';
+      const hd = document.createElement('div'); hd.className = 'peek-meld-head';
+      hd.textContent = p.name + (p.id === playerId ? ' (du)' : '');
+      blk.appendChild(hd);
+      const gs = document.createElement('div'); gs.className = 'peek-meld-groups';
+      p.laidGroups.forEach(g => {
+        const gd = document.createElement('div'); gd.className = 'meld-group';
+        g.cards.forEach(c => gd.appendChild(cardEl(c, true)));
+        gs.appendChild(gd);
+      });
+      blk.appendChild(gs); wrap.appendChild(blk);
+    });
+    body.appendChild(wrap);
   }
 }
 
@@ -649,23 +705,40 @@ function showOverlay(title, subtitle, bodyFn, actions) {
   $('overlay').classList.remove('hidden');
 }
 
-function scoreTable() {
-  const t = document.createElement('table'); t.className = 'score-table';
+// Wertungsblatt: Spieler × Runden + Gesamt
+function scoreSheetEl() {
+  const nRounds = Math.max(0, ...state.players.map(p => (p.roundScores || []).length));
+  const wrap = document.createElement('div'); wrap.className = 'sheet-wrap';
+  const t = document.createElement('table'); t.className = 'sheet-table';
+  let head = '<tr><th class="pl">Spieler</th><th>Phase</th>';
+  for (let i = 1; i <= nRounds; i++) head += `<th>R${i}</th>`;
+  head += '<th class="tot">Ges.</th></tr>';
+  const thead = document.createElement('thead'); thead.innerHTML = head; t.appendChild(thead);
+  const tbody = document.createElement('tbody');
   [...state.players].sort((a, b) => a.score - b.score).forEach(p => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td><span class="avatar sm" style="background:${colorFor(p.name)}">${initials(p.name)}</span>${escapeHtml(p.name)}</td>` +
-      `<td>Phase ${p.phase + 1}</td><td>${p.score} P.</td>`;
-    t.appendChild(tr);
+    let row = `<td class="pl"><span class="avatar sm" style="background:${colorFor(p.name)}">${initials(p.name)}</span>${escapeHtml(p.name)}${p.id === playerId ? ' <span class="you-tag">(du)</span>' : ''}${p.finishedGame ? ' 🏆' : ''}</td>`;
+    row += `<td>${p.phase + 1}</td>`;
+    for (let i = 0; i < nRounds; i++) row += `<td>${(p.roundScores && p.roundScores[i] != null) ? p.roundScores[i] : '–'}</td>`;
+    row += `<td class="tot">${p.score}</td>`;
+    const tr = document.createElement('tr'); tr.innerHTML = row; tbody.appendChild(tr);
   });
-  return t;
+  t.appendChild(tbody); wrap.appendChild(t);
+  return wrap;
 }
 
 function renderRoundOver() {
-  const isHost = state.hostId === playerId;
+  showHandPeek = false;
+  const meP = me();
+  const iAmReady = meP && meP.ready;
+  const conn = state.players.filter(p => p.connected);
+  const readyList = state.players.filter(p => p.ready);
   showOverlay('Runde beendet', state.lastAction || '', (body) => {
-    body.appendChild(scoreTable());
-    if (!isHost) { const p = document.createElement('p'); p.className = 'hint'; p.textContent = 'Warte auf den Host für die nächste Runde …'; body.appendChild(p); }
-  }, isHost ? [{ text: 'Nächste Runde', cls: 'primary', fn: () => socket.emit('nextRound') }] : []);
+    body.appendChild(scoreSheetEl());
+    const st = document.createElement('p'); st.className = 'ready-status';
+    st.innerHTML = `Bereit: <b>${readyList.length}/${conn.length}</b>` + (readyList.length ? ` – ${readyList.map(p => escapeHtml(p.name)).join(', ')}` : '');
+    body.appendChild(st);
+    if (iAmReady) { const w = document.createElement('p'); w.className = 'hint'; w.textContent = 'Warte auf die anderen Spieler …'; body.appendChild(w); }
+  }, iAmReady ? [] : [{ text: '✓ Bereit für nächste Runde', cls: 'primary', fn: () => socket.emit('ready') }]);
 }
 
 function renderGameOver() {
@@ -675,7 +748,7 @@ function renderGameOver() {
     const w = document.createElement('p');
     w.innerHTML = `Sieger: <span class="winner-name">${escapeHtml(names)}</span>`;
     body.appendChild(w);
-    body.appendChild(scoreTable());
+    body.appendChild(scoreSheetEl());
   }, isHost ? [{ text: 'Neues Spiel', cls: 'primary', fn: () => socket.emit('startGame') }] : []);
 }
 

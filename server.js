@@ -40,6 +40,7 @@ function makePlayer(id, name) {
     completedPhase: false,
     hasDrawn: false,
     score: 0,
+    roundScores: [],   // Minuspunkte pro Runde (für das Wertungsblatt)
     finishedGame: false,
     draw2: false,      // "Nimm zwei!" liegt vor dem Spieler
     keepAll: false,    // "Alles meins!" liegt vor dem Spieler
@@ -56,10 +57,12 @@ function playerPublic(room, p) {
     laidGroups: p.laidGroups,
     laidThisRound: p.laidThisRound,
     score: p.score,
+    roundScores: p.roundScores,
     finishedGame: p.finishedGame,
     draw2: p.draw2,
     keepAll: p.keepAll,
     willSkip: room.skipTargets ? room.skipTargets.has(p.id) : false,
+    ready: room.ready ? room.ready.has(p.id) : false,
   };
 }
 
@@ -138,6 +141,7 @@ function startRound(room) {
   room.discard = [top];
   room.skipTargets = new Set();
   room.give5 = null;
+  room.ready = new Set();
   room.roundOver = false;
   room.lastAction = null;
 
@@ -220,8 +224,11 @@ function finishGive5NoPick(room) {
 function endRound(room, goneOutPlayer) {
   room.roundOver = true;
   for (const p of room.players) {
-    // Restpunkte aufaddieren
-    for (const c of p.hand) p.score += G.cardPoints(c);
+    // Restpunkte dieser Runde erfassen (jede Karte = 1 Punkt)
+    let rp = 0;
+    for (const c of p.hand) rp += G.cardPoints(c);
+    p.score += rp;
+    p.roundScores.push(rp);
     // Wer seine Phase geschafft hat, rückt vor
     if (p.completedPhase) {
       if (p.phase === G.PHASES.length - 1) {
@@ -258,7 +265,7 @@ io.on('connection', (socket) => {
     const room = {
       code, hostId: playerId, players: [], started: false,
       deck: [], discard: [], turnIndex: 0, dealerIndex: 0,
-      skipTargets: new Set(), give5: null,
+      skipTargets: new Set(), give5: null, ready: new Set(),
       roundOver: false, gameOver: false, winners: null,
     };
     const p = makePlayer(playerId, name);
@@ -312,11 +319,23 @@ io.on('connection', (socket) => {
     room.gameOver = false;
     room.winners = null;
     room.dealerIndex = 0;
-    for (const p of room.players) { p.phase = 0; p.score = 0; p.finishedGame = false; }
+    for (const p of room.players) { p.phase = 0; p.score = 0; p.roundScores = []; p.finishedGame = false; }
     startRound(room);
     broadcast(room);
   });
 
+  // Nach einer Runde: jeder drückt "Bereit"; sind alle bereit, geht es weiter.
+  socket.on('ready', () => {
+    const room = joinedRoom;
+    if (!room || !room.roundOver || room.gameOver) return;
+    room.ready = room.ready || new Set();
+    room.ready.add(selfId);
+    const allReady = room.players.filter(p => p.connected).every(p => room.ready.has(p.id));
+    if (allReady) startRound(room);
+    broadcast(room);
+  });
+
+  // Host kann die nächste Runde auch erzwingen (Fallback).
   socket.on('nextRound', () => {
     const room = joinedRoom;
     if (!room || room.hostId !== selfId || room.gameOver) return;
