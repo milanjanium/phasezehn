@@ -546,18 +546,42 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
   100% { transform: scale(1) rotateY(0deg); opacity: 1; }
 }
 
-/* Zweite Ablagekarte als Vorschau (leicht versetzt hinter der obersten) */
+/* Zweite Ablagekarte als Vorschau – nach oben versetzt, Zahl gut lesbar */
 .pile-cards { position: relative; display: inline-block; }
 .discard-second {
-  position: absolute; top: -8px; left: -16px; z-index: 0;
-  transform: scale(.86); filter: brightness(.72) saturate(.9);
-  box-shadow: 0 2px 8px rgba(0,0,0,.5);
+  position: absolute; top: calc(var(--card-h) * -0.44); left: 0; z-index: 0;
+  transform: scale(.94); filter: none;
+  box-shadow: 0 -3px 12px rgba(0,0,0,.5); outline: 2px solid rgba(255,255,255,.3);
 }
+/* obere Eck-Zahl der 2. Karte deutlich größer, damit sie im sichtbaren Bereich lesbar ist */
+.discard-second .c-idx.tl { font-size: calc(var(--card-w) * .4); font-weight: 900; top: 5%; left: 8%; }
+.discard-second .c-idx.br, .discard-second .c-center, .discard-second .c-cap { opacity: .55; }
+.discard-second .j-label { font-size: calc(var(--card-w) * .16); top: 6%; }
 #discard-card { position: relative; z-index: 1; }
 
 /* Zuschauer-Pod & -Hinweis */
 .opp.spectators { min-width: 150px; border-style: dashed; }
 .spec-eye { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; font-size: 22px; }
+
+/* Viele Handkarten (>10): kleiner darstellen, damit alle sichtbar bleiben */
+.hand.many .card { --card-w: 47px; --card-h: 69px; }
+
+/* Beitritts-Anfragen / Wartestatus */
+.join-requests {
+  position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 45;
+  width: min(94vw, 540px); display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+}
+.join-requests:empty { display: none; }
+.jr-banner {
+  pointer-events: auto; display: flex; align-items: center; gap: 8px;
+  background: rgba(9,16,28,.94); border: 1px solid rgba(255,255,255,.15); border-radius: 12px;
+  padding: 8px 12px; font-size: 14px; font-weight: 600; box-shadow: 0 8px 24px rgba(0,0,0,.55);
+  backdrop-filter: blur(6px);
+}
+.jr-banner.wait { border-color: rgba(224,164,0,.45); color: var(--gold); justify-content: center; text-align: center; }
+.jr-banner.ok { border-color: rgba(47,191,107,.5); color: #7fe0a6; justify-content: center; text-align: center; }
+.jr-banner.req .jr-name { flex: 1; }
+.jr-btn { width: auto !important; min-width: auto !important; flex: 0 0 auto !important; margin: 0 !important; padding: 8px 12px !important; font-size: 13px !important; }
 
 /* ============================================================
    Responsive: Tablet
@@ -608,6 +632,7 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
   .hand-header { margin-bottom: 4px; }
   .controls .btn { flex: 0 1 220px; font-size: 16px; padding: 13px; }
   .avatar { width: 42px; height: 42px; font-size: 15px; }
+  .hand.many .card { --card-w: 84px; --card-h: 120px; }
 }
 
 @media (min-width: 1300px) and (orientation: landscape) {

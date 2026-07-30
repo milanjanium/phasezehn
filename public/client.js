@@ -225,6 +225,7 @@ function updateRoomBadge() {
 //  Socket-Events
 // ============================================================
 socket.on('errorMsg', (m) => toast(m));
+socket.on('info', (m) => toast(m, true)); // für alle sichtbare Info (z.B. Aktionskarte verfallen)
 
 // Großer Vollbild-Hinweis (rot/grün)
 function showBigNotice(text, color, ms) {
@@ -427,6 +428,24 @@ function renderGame() {
     opp.appendChild(sp);
   }
 
+  // Beitritts-Anfragen / eigener Wartestatus
+  const jr = $('join-requests'); jr.innerHTML = '';
+  if (state.spectator) {
+    if (state.myJoinAsPlayer) jr.innerHTML = '<div class="jr-banner ok">✓ Du wurdest zugelassen – du spielst ab der nächsten Runde mit.</div>';
+    else if (state.myPending) jr.innerHTML = '<div class="jr-banner wait">⏳ Beitritt angefragt – warte auf Bestätigung eines Mitspielers …</div>';
+  } else if (state.joinRequests && state.joinRequests.length) {
+    state.joinRequests.forEach(r => {
+      const row = document.createElement('div'); row.className = 'jr-banner req';
+      const txt = document.createElement('span'); txt.className = 'jr-name';
+      txt.textContent = `${r.name} möchte mitspielen`;
+      const ok = btn('✓ Zulassen', 'good', () => socket.emit('confirmJoin', { id: r.id }));
+      const no = btn('✕', 'danger', () => socket.emit('rejectJoin', { id: r.id }));
+      ok.classList.add('jr-btn'); no.classList.add('jr-btn');
+      row.appendChild(txt); row.appendChild(ok); row.appendChild(no);
+      jr.appendChild(row);
+    });
+  }
+
   // Eigene Phase + Fortschritt
   $('my-phase-num').textContent = state.myPhaseIndex + 1;
   $('my-phase-desc').textContent = state.phases[state.myPhaseIndex].desc;
@@ -494,6 +513,8 @@ function renderMeldsTable() {
 function renderHand() {
   const hand = $('my-hand'); hand.innerHTML = '';
   $('hand-count').textContent = state.myHand.length;
+  // Bei vielen Karten kleiner darstellen, damit auch die 11.+ Karte sichtbar ist.
+  hand.classList.toggle('many', state.myHand.length > 10);
   const usedInBuild = new Set(buildGroups.flat());
   // Auswahl bereinigen: Karten, die nicht mehr auf der Hand sind (z.B. gerade
   // angelegt), werden automatisch abgewählt – so kann man weiter anlegen.

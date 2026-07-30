@@ -13,6 +13,7 @@ const server = http.createServer(app);
 // (Handy-Sperre, WLAN-Wechsel), damit die Verbindung nicht ständig abbricht.
 const io = new Server(server, { pingInterval: 25000, pingTimeout: 60000 });
 
+app.get('/health', (req, res) => res.type('text').send('ok'));
 app.use(express.static(path.join(__dirname, 'public')));
 
 const PORT = process.env.PORT || 3000;
@@ -111,6 +112,9 @@ function stateFor(room, playerId) {
     lastFinisher: room.lastFinisher || null,
     spectator: !me && (room.spectators || []).some(s => s.id === playerId),
     spectators: (room.spectators || []).map(s => ({ name: s.name, connected: s.connected })),
+    joinRequests: (room.spectators || []).filter(s => s.pending).map(s => ({ id: s.id, name: s.name })),
+    myPending: !me && (room.spectators || []).some(s => s.id === playerId && s.pending),
+    myJoinAsPlayer: !me && (room.spectators || []).some(s => s.id === playerId && s.joinAsPlayer),
   };
 }
 
@@ -132,6 +136,16 @@ function reveal(player, card, caption) {
 
 // ---- Runde starten / austeilen ----
 function startRound(room) {
+  // Bestätigte Beitritts-Anfragen als Mitspieler übernehmen (ab dieser Runde).
+  if (room.spectators && room.spectators.some(s => s.joinAsPlayer)) {
+    for (const s of room.spectators.filter(s => s.joinAsPlayer)) {
+      if (room.players.length >= 6) break;
+      const np = makePlayer(s.id, s.name);
+      np.socketId = s.socketId; np.connected = s.connected;
+      room.players.push(np);
+    }
+    room.spectators = room.spectators.filter(s => !s.joinAsPlayer);
+  }
   const deck = G.shuffle(G.buildDeck());
   for (const p of room.players) {
     if (p.keepAll) {
@@ -332,14 +346,15 @@ io.on('connection', (socket) => {
       return;
     }
     if (room.started) {
-      // Kein passender Spieler-Name -> als Zuschauer beobachten
+      // Kein passender Spieler-Name -> als Zuschauer beobachten, mit
+      // Beitritts-Anfrage: ein Mitspieler kann den Beitritt bestätigen.
       room.spectators = room.spectators || [];
       let sp = room.spectators.find(s => s.id === playerId);
       if (sp) { sp.socketId = socket.id; sp.connected = true; sp.name = name; }
-      else room.spectators.push({ id: playerId, name, socketId: socket.id, connected: true });
+      else { sp = { id: playerId, name, socketId: socket.id, connected: true, pending: true, joinAsPlayer: false }; room.spectators.push(sp); }
       joinedRoom = room; selfId = playerId;
       socket.join(code);
-      cb && cb({ ok: true, code, spectator: true });
+      cb && cb({ ok: true, code, spectator: true, pending: !!sp.pending });
       broadcast(room);
       return;
     }
@@ -374,6 +389,30 @@ io.on('connection', (socket) => {
     room.ready.add(selfId);
     const allReady = room.players.filter(p => p.connected).every(p => room.ready.has(p.id));
     if (allReady) startRound(room);
+    broadcast(room);
+  });
+
+  // Beitritts-Anfrage bestätigen (jeder verbundene Mitspieler darf).
+  socket.on('confirmJoin', ({ id }) => {
+    const room = joinedRoom;
+    if (!room || !room.started) return;
+    if (!room.players.some(p => p.id === selfId && p.connected)) return;
+    const sp = (room.spectators || []).find(s => s.id === id && s.pending);
+    if (!sp) return;
+    const willBe = room.players.length + (room.spectators || []).filter(s => s.joinAsPlayer).length;
+    if (willBe >= 6) return fail('Der Raum ist voll (max. 6 Spieler).');
+    sp.pending = false; sp.joinAsPlayer = true;
+    room.lastAction = `${sp.name} wurde zugelassen und spielt ab der nächsten Runde mit.`;
+    io.to(room.code).emit('info', room.lastAction);
+    broadcast(room);
+  });
+  socket.on('rejectJoin', ({ id }) => {
+    const room = joinedRoom;
+    if (!room || !room.started) return;
+    if (!room.players.some(p => p.id === selfId && p.connected)) return;
+    const sp = (room.spectators || []).find(s => s.id === id && s.pending);
+    if (!sp) return;
+    sp.pending = false; // bleibt Zuschauer, Anfrage entfernt
     broadcast(room);
   });
 
@@ -580,6 +619,7 @@ io.on('connection', (socket) => {
     me.hasDrawn = false;
     if (me.hand.length === 0) { endRound(room, me); broadcast(room); return; }
     room.lastAction = `${me.name} lässt „${label}" verfallen.`;
+    io.to(room.code).emit('info', room.lastAction); // für alle sichtbar
     advanceTurn(room);
     broadcast(room);
   });
@@ -736,6 +776,13 @@ setInterval(() => {
     else if (now - room.emptySince > EMPTY_TTL) rooms.delete(code);
   }
 }, 60 * 1000);
+
+// Keep-Alive: verhindert, dass der (kostenlose) Render-Dienst nach Inaktivität
+// schläft und dabei alle laufenden Räume verliert ("Raum nicht gefunden").
+const SELF_URL = process.env.RENDER_EXTERNAL_URL || process.env.SELF_URL;
+if (SELF_URL && typeof fetch === 'function') {
+  setInterval(() => { fetch(SELF_URL + '/health').catch(() => {}); }, 10 * 60 * 1000);
+}
 
 server.listen(PORT, () => {
   console.log(`\n  Phase 10 läuft auf:  http://localhost:${PORT}`);
