@@ -6,6 +6,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
 const G = require('./game');
+const store = require('./store');
 
 const app = express();
 const server = http.createServer(app);
@@ -125,6 +126,51 @@ function broadcast(room) {
   for (const s of (room.spectators || [])) {
     if (s.socketId) io.to(s.socketId).emit('state', stateFor(room, s.id));
   }
+  schedulePersist(room);
+}
+
+// ---- Persistenz: Raum <-> JSON (Sets -> Arrays, keine Socket-IDs) ----
+function serializeRoom(room) {
+  return {
+    code: room.code, hostId: room.hostId, started: room.started,
+    dealerIndex: room.dealerIndex, turnIndex: room.turnIndex,
+    deck: room.deck, discard: room.discard,
+    roundOver: room.roundOver, gameOver: room.gameOver, winners: room.winners || null,
+    lastAction: room.lastAction || null, lastFinisher: room.lastFinisher || null,
+    roundNo: room.roundNo || 0, emptySince: room.emptySince || null,
+    skipTargets: [...(room.skipTargets || [])],
+    ready: [...(room.ready || [])],
+    tookTurn: [...(room.tookTurn || [])],
+    give5: room.give5 || null,
+    players: room.players.map(p => ({ ...p, socketId: null })),
+    spectators: (room.spectators || []).map(s => ({ ...s, socketId: null })),
+  };
+}
+function deserializeRoom(d) {
+  const room = { ...d };
+  room.skipTargets = new Set(d.skipTargets || []);
+  room.ready = new Set(d.ready || []);
+  room.tookTurn = new Set(d.tookTurn || []);
+  // Nach einem Neustart ist niemand verbunden – alle müssen sich neu einklinken.
+  room.players = (d.players || []).map(p => ({ ...p, socketId: null, connected: false }));
+  room.spectators = (d.spectators || []).map(s => ({ ...s, socketId: null, connected: false }));
+  room.emptySince = Date.now();
+  return room;
+}
+
+const persistTimers = new Map();
+function schedulePersist(room) {
+  if (!store.enabled || !room || persistTimers.has(room.code)) return;
+  persistTimers.set(room.code, setTimeout(() => {
+    persistTimers.delete(room.code);
+    store.save(room.code, serializeRoom(room)).catch(() => {});
+  }, 800));
+}
+function removePersisted(code) {
+  if (!store.enabled) return;
+  const t = persistTimers.get(code);
+  if (t) { clearTimeout(t); persistTimers.delete(code); }
+  store.remove(code).catch(() => {});
 }
 
 function currentPlayer(room) { return room.players[room.turnIndex]; }
@@ -734,7 +780,7 @@ io.on('connection', (socket) => {
       if (next) room.hostId = next.id;
     }
     socket.leave(room.code);
-    if (room.players.length === 0 && (!room.spectators || room.spectators.length === 0)) rooms.delete(room.code);
+    if (room.players.length === 0 && (!room.spectators || room.spectators.length === 0)) { rooms.delete(room.code); removePersisted(room.code); }
     else broadcast(room);
     joinedRoom = null;
   });
@@ -773,7 +819,7 @@ setInterval(() => {
   for (const [code, room] of rooms) {
     if (room.players.some(pp => pp.connected)) { room.emptySince = null; continue; }
     if (!room.emptySince) room.emptySince = now;
-    else if (now - room.emptySince > EMPTY_TTL) rooms.delete(code);
+    else if (now - room.emptySince > EMPTY_TTL) { rooms.delete(code); removePersisted(code); }
   }
 }, 60 * 1000);
 
@@ -783,6 +829,34 @@ const SELF_URL = process.env.RENDER_EXTERNAL_URL || process.env.SELF_URL;
 if (SELF_URL && typeof fetch === 'function') {
   setInterval(() => { fetch(SELF_URL + '/health').catch(() => {}); }, 10 * 60 * 1000);
 }
+
+// Beim Start: Tabelle anlegen und gespeicherte Räume laden (überleben Neustarts).
+(async () => {
+  try {
+    await store.init();
+    if (store.enabled) {
+      const saved = await store.loadAll();
+      for (const d of saved) {
+        try { const room = deserializeRoom(d); rooms.set(room.code, room); } catch (e) { /* defekten Datensatz überspringen */ }
+      }
+      console.log(`  Persistenz: aktiv (Postgres), ${rooms.size} Raum/Räume geladen.`);
+    } else {
+      console.log('  Persistenz: aus (kein DATABASE_URL) – Räume nur im Speicher.');
+    }
+  } catch (e) {
+    console.log('  Persistenz-Fehler beim Start (läuft im Speicher weiter):', e.message);
+  }
+})();
+
+// Vor dem Neustart (Render sendet SIGTERM): alle Räume schnell sichern.
+async function flushAndExit() {
+  try {
+    if (store.enabled) for (const [code, room] of rooms) await store.save(code, serializeRoom(room));
+  } catch (e) { /* ignorieren */ }
+  process.exit(0);
+}
+process.on('SIGTERM', flushAndExit);
+process.on('SIGINT', flushAndExit);
 
 server.listen(PORT, () => {
   console.log(`\n  Phase 10 läuft auf:  http://localhost:${PORT}`);

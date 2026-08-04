@@ -35,9 +35,27 @@ Das Projekt ist deploy-fertig (enthält `render.yaml`). Auf **Render** (kostenlo
 
 Hinweis: Der kostenlose Plan „schläft" nach Inaktivität – der erste
 Aufruf nach einer Pause dauert ~30–50 Sek., danach läuft alles flüssig.
+Ein eingebauter Keep-Alive (`/health`) hält den Dienst wach, solange die
+Umgebungsvariable `RENDER_EXTERNAL_URL` gesetzt ist (auf Render meist
+automatisch; sonst `SELF_URL` = deine `…onrender.com`-Adresse setzen).
 
 > Alternativen: Railway oder Fly.io funktionieren genauso (Standard-
 > Node-Server, liest `PORT` aus der Umgebung).
+
+### Räume dauerhaft speichern (empfohlen)
+
+Ohne Datenbank liegen die Räume nur im Speicher und gehen bei jedem
+Neustart/Schlafmodus verloren („Raum nicht gefunden"). Mit einer
+PostgreSQL-Datenbank überstehen sie Neustarts:
+
+1. Auf Render **New ▸ PostgreSQL** anlegen (Free-Plan genügt).
+2. Beim Web-Service unter **Environment** eine Variable **`DATABASE_URL`**
+   setzen – auf die **Internal Database URL** der neuen Datenbank.
+   (Blueprint-Nutzer: die `render.yaml` verknüpft das automatisch.)
+3. Neu deployen. Beim Start erscheint im Log „Persistenz: aktiv (Postgres)".
+
+Lokal ist keine DB nötig – ohne `DATABASE_URL` läuft alles wie bisher im
+Speicher (`Persistenz: aus`). Die Tabelle `rooms` wird automatisch angelegt.
 
 ## Spielregeln (Kurzfassung)
 

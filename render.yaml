@@ -1,5 +1,9 @@
-# Render Blueprint – deployt Phase 10 automatisch.
+# Render Blueprint – deployt Phase 10 automatisch (inkl. Datenbank).
 # Auf render.com -> New -> Blueprint -> dieses Repo wählen.
+databases:
+  - name: phasezehn-db
+    plan: free
+
 services:
   - type: web
     name: phasezehn
@@ -7,7 +11,12 @@ services:
     plan: free
     buildCommand: npm install
     startCommand: npm start
-    healthCheckPath: /
+    healthCheckPath: /health
     envVars:
       - key: NODE_VERSION
         value: "20"
+      # Räume dauerhaft speichern (überleben Neustart/Schlafmodus)
+      - key: DATABASE_URL
+        fromDatabase:
+          name: phasezehn-db
+          property: connectionString
