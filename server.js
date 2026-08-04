@@ -48,6 +48,8 @@ function makePlayer(id, name) {
     finishedGame: false,
     draw2: false,      // "Nimm zwei!" liegt vor dem Spieler
     keepAll: false,    // "Alles meins!" liegt vor dem Spieler
+    keepAllKeep: false,    // Entscheidung am Rundenende: Handkarten behalten?
+    keepAllDecided: false, // schon entschieden?
     pendingDraw: null, // bei Nimm-zwei: 2 gezogene Karten zur Auswahl
   };
 }
@@ -108,6 +110,7 @@ function stateFor(room, playerId) {
     myHasDrawn: me ? me.hasDrawn : false,
     myLaidThisRound: me ? me.laidThisRound : false,
     myPendingDraw: me ? me.pendingDraw : null,
+    myKeepAllPending: !!(room.roundOver && me && me.keepAll && !me.keepAllDecided),
     give5: give5Public(room),
     lastAction: room.lastAction || null,
     lastFinisher: room.lastFinisher || null,
@@ -194,8 +197,8 @@ function startRound(room) {
   }
   const deck = G.shuffle(G.buildDeck());
   for (const p of room.players) {
-    if (p.keepAll) {
-      // "Alles meins!": Handkarten behalten, nur bis 10 auffüllen (mehr behalten).
+    if (p.keepAll && p.keepAllKeep) {
+      // "Alles meins!": Handkarten behalten (Spieler hat sich dafür entschieden), bis 10 auffüllen.
       while (p.hand.length < 10) p.hand.push(deck.shift());
     } else {
       p.hand = deck.splice(0, 10);
@@ -206,6 +209,8 @@ function startRound(room) {
     p.hasDrawn = false;
     p.draw2 = false;      // Front-Aktionskarten werden zurückgegeben
     p.keepAll = false;
+    p.keepAllKeep = false;
+    p.keepAllDecided = false;
     p.pendingDraw = null;
   }
   // Erste Ablagekarte (keine Joker-/Aktionskarte als Startkarte)
@@ -431,8 +436,25 @@ io.on('connection', (socket) => {
   socket.on('ready', () => {
     const room = joinedRoom;
     if (!room || !room.roundOver || room.gameOver) return;
+    const me = room.players.find(p => p.id === selfId);
+    if (me && me.keepAll && !me.keepAllDecided) return fail('Bitte zuerst über „Alles meins!" entscheiden.');
     room.ready = room.ready || new Set();
     room.ready.add(selfId);
+    const allReady = room.players.filter(p => p.connected).every(p => room.ready.has(p.id));
+    if (allReady) startRound(room);
+    broadcast(room);
+  });
+
+  // "Alles meins!" – am Rundenende entscheiden: Handkarten behalten oder abgeben.
+  socket.on('keepAllChoice', ({ keep }) => {
+    const room = joinedRoom;
+    if (!room || !room.roundOver || room.gameOver) return;
+    const me = room.players.find(p => p.id === selfId);
+    if (!me || !me.keepAll) return;
+    me.keepAllKeep = !!keep;
+    me.keepAllDecided = true;
+    room.ready = room.ready || new Set();
+    room.ready.add(selfId); // Entscheidung zählt als "bereit"
     const allReady = room.players.filter(p => p.connected).every(p => room.ready.has(p.id));
     if (allReady) startRound(room);
     broadcast(room);

@@ -546,17 +546,22 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
   100% { transform: scale(1) rotateY(0deg); opacity: 1; }
 }
 
-/* Zweite Ablagekarte als Vorschau – nach oben versetzt, Zahl gut lesbar */
+/* Zweite Ablagekarte: standardmäßig nur leicht hinter der obersten angedeutet */
 .pile-cards { position: relative; display: inline-block; }
 .discard-second {
-  position: absolute; top: calc(var(--card-h) * -0.44); left: 0; z-index: 0;
+  position: absolute; top: -7px; left: -7px; z-index: 0;
+  transform: scale(.9); filter: brightness(.55) saturate(.8);
+  box-shadow: 0 2px 8px rgba(0,0,0,.5);
+}
+/* Mit „Nimm zwei": deutlich nach oben versetzt, Zahl gut lesbar */
+.discard-second.clear {
+  top: calc(var(--card-h) * -0.44); left: 0;
   transform: scale(.94); filter: none;
   box-shadow: 0 -3px 12px rgba(0,0,0,.5); outline: 2px solid rgba(255,255,255,.3);
 }
-/* obere Eck-Zahl der 2. Karte deutlich größer, damit sie im sichtbaren Bereich lesbar ist */
-.discard-second .c-idx.tl { font-size: calc(var(--card-w) * .4); font-weight: 900; top: 5%; left: 8%; }
-.discard-second .c-idx.br, .discard-second .c-center, .discard-second .c-cap { opacity: .55; }
-.discard-second .j-label { font-size: calc(var(--card-w) * .16); top: 6%; }
+.discard-second.clear .c-idx.tl { font-size: calc(var(--card-w) * .4); font-weight: 900; top: 5%; left: 8%; }
+.discard-second.clear .c-idx.br, .discard-second.clear .c-center, .discard-second.clear .c-cap { opacity: .55; }
+.discard-second.clear .j-label { font-size: calc(var(--card-w) * .16); top: 6%; }
 #discard-card { position: relative; z-index: 1; }
 
 /* Zuschauer-Pod & -Hinweis */

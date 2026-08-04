@@ -332,7 +332,7 @@ function cardEl(card, small) {
   if (card.value === 'skip') { classes.push('act', 'skip'); center = '⊘'; idx = '⊘'; cap = 'AUSSETZEN'; }
   else if (card.value === 'draw2') { classes.push('act', 'draw2'); center = '✌️'; idx = '2'; cap = 'NIMM ZWEI'; }
   else if (card.value === 'keepall') { classes.push('act', 'keepall'); center = '👍'; idx = '👍'; cap = 'ALLES MEINS'; }
-  else if (card.value === 'give5') { classes.push('act', 'give5'); center = '✋'; idx = '5'; cap = 'GIVE FIVE'; }
+  else if (card.value === 'give5') { classes.push('act', 'give5'); center = '✋'; idx = ''; cap = 'GIVE FIVE'; }
   else { classes.push(card.color); center = card.value; idx = card.value; }
   d.className = classes.join(' ');
   if (small) {
@@ -465,13 +465,15 @@ function renderGame() {
     const el = cardEl(state.discardTop);
     dc.className = el.className; dc.innerHTML = el.innerHTML; dc.style.cssText = el.style.cssText;
   } else { dc.className = 'card empty'; dc.innerHTML = ''; dc.style.cssText = ''; }
-  // Zweite Ablagekarte (Vorschau, damit man für „Nimm zwei" entscheiden kann)
+  // Zweite Ablagekarte: nur mit aktivem „Nimm zwei" deutlich, sonst nur leicht angedeutet
   const ds = $('discard-second');
   if (ds) {
+    const meP2 = me();
+    const clear = !!(meP2 && meP2.draw2);
     if (state.discardSecond) {
       const el2 = cardEl(state.discardSecond);
       ds.style.cssText = el2.style.cssText;
-      ds.className = el2.className + ' discard-second';
+      ds.className = el2.className + ' discard-second' + (clear ? ' clear' : '');
       ds.innerHTML = el2.innerHTML;
     } else { ds.className = 'card discard-second hidden'; ds.innerHTML = ''; ds.style.cssText = ''; }
   }
@@ -837,6 +839,25 @@ function renderRoundOver() {
   const iAmReady = meP && meP.ready;
   const conn = state.players.filter(p => p.connected);
   const readyList = state.players.filter(p => p.ready);
+
+  // "Alles meins!": eigene Entscheidung mit sichtbaren Handkarten
+  if (state.myKeepAllPending) {
+    showOverlay('👍 Alles meins! – Karten behalten?', '', (body) => {
+      const info = document.createElement('p'); info.className = 'hint';
+      info.textContent = 'Behalte deine Handkarten für die nächste Runde (du bekommst dafür trotzdem die Minuspunkte) oder gib sie ab und erhalte eine frische Hand.';
+      body.appendChild(info);
+      const lbl = document.createElement('div'); lbl.className = 'peek-label'; lbl.textContent = 'Deine Handkarten'; body.appendChild(lbl);
+      const strip = document.createElement('div'); strip.className = 'hand-peek';
+      (state.myHand || []).forEach(c => strip.appendChild(cardEl(c, true)));
+      body.appendChild(strip);
+      body.appendChild(scoreSheetEl());
+    }, [
+      { text: '✓ Karten behalten', cls: 'primary', fn: () => socket.emit('keepAllChoice', { keep: true }) },
+      { text: 'Abgeben', cls: 'danger', fn: () => socket.emit('keepAllChoice', { keep: false }) },
+    ]);
+    return;
+  }
+
   showOverlay('Runde beendet', state.lastAction || '', (body) => {
     body.appendChild(scoreSheetEl());
     const st = document.createElement('p'); st.className = 'ready-status';
