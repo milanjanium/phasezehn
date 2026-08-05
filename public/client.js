@@ -213,6 +213,28 @@ $('btn-score').onclick = () => {
 };
 $('scoresheet-close').onclick = () => $('scoresheet').classList.add('hidden');
 
+// ---------- Raum-Einstellungen (nur Host, in der Lobby) ----------
+function isRoomHost() { return state && state.hostId === playerId; }
+$('btn-settings').onclick = () => {
+  if (!state) return;
+  syncSettingsModal();
+  $('settings-modal').classList.remove('hidden');
+};
+$('settings-close').onclick = () => $('settings-modal').classList.add('hidden');
+// Spiegelt den aktuellen Serverzustand ins Modal; Host darf ändern, sonst nur lesen.
+function syncSettingsModal() {
+  const host = isRoomHost();
+  const layFirst = !(state && state.settings && state.settings.layFirstTurn === false);
+  const cb = $('set-lay-first');
+  cb.checked = layFirst;
+  cb.disabled = !host;
+  $('settings-readonly').classList.toggle('hidden', host);
+}
+$('set-lay-first').onchange = () => {
+  if (!isRoomHost()) return;
+  socket.emit('updateSettings', { settings: { layFirstTurn: $('set-lay-first').checked } });
+};
+
 // ---------- Piles: ziehen ----------
 $('draw-pile').onclick = () => tryDraw('draw');
 $('discard-pile').onclick = () => tryDraw('discard');
@@ -387,7 +409,14 @@ function renderLobby() {
     }
     ul.appendChild(li);
   }
+  const layFirst = !(state.settings && state.settings.layFirstTurn === false);
+  $('lobby-rules').textContent = layFirst
+    ? '🃏 Auslegen im ersten Zug: erlaubt'
+    : '🃏 Auslegen im ersten Zug: gesperrt (erst ab dem zweiten Zug)';
   const isHost = state.hostId === playerId;
+  $('btn-settings').classList.toggle('hidden', !isHost);
+  // Offenes Einstellungs-Modal live nachziehen (z.B. bei Host-Wechsel/Reconnect)
+  if (!$('settings-modal').classList.contains('hidden')) syncSettingsModal();
   const startBtn = $('btn-start');
   startBtn.style.display = isHost ? 'block' : 'none';
   startBtn.disabled = state.players.length < 2;

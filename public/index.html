@@ -44,6 +44,11 @@
       <h3>Spieler</h3>
       <ul id="lobby-players" class="player-list"></ul>
 
+      <div class="lobby-rules-row">
+        <p id="lobby-rules" class="hint"></p>
+        <button id="btn-settings" class="btn tiny settings-btn hidden" aria-label="Einstellungen">⚙️ Einstellungen</button>
+      </div>
+
       <button id="btn-start" class="btn primary">Spiel starten</button>
       <p id="lobby-hint" class="hint"></p>
     </div>
@@ -123,6 +128,27 @@
       <h2>📊 Wertungsblatt</h2>
       <div id="scoresheet-body"></div>
       <div class="overlay-actions"><button id="scoresheet-close" class="btn">Schließen</button></div>
+    </div>
+  </div>
+
+  <!-- Raum-Einstellungen (nur Host, in der Lobby). Erweiterbar: weitere Optionen als .setting-row -->
+  <div id="settings-modal" class="overlay hidden">
+    <div class="overlay-box">
+      <h2>⚙️ Raum-Einstellungen</h2>
+      <p id="settings-readonly" class="hint hidden">Nur der Host kann diese Einstellungen ändern.</p>
+      <div class="settings-list">
+        <div class="setting-row">
+          <div class="setting-text">
+            <span class="setting-title">Im ersten Zug auslegen</span>
+            <span class="setting-hint">Aus = niemand darf in seinem ersten Zug einer Runde auslegen (erst ab dem zweiten Zug).</span>
+          </div>
+          <label class="switch">
+            <input id="set-lay-first" type="checkbox" checked />
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+      <div class="overlay-actions"><button id="settings-close" class="btn">Fertig</button></div>
     </div>
   </div>
   <div id="reconnect-bar" class="reconnect-bar hidden">⚠ Verbindung verloren – versuche neu zu verbinden …</div>

@@ -95,6 +95,7 @@ function stateFor(room, playerId) {
   return {
     code: room.code,
     hostId: room.hostId,
+    settings: room.settings || null,
     started: room.started,
     roundOver: room.roundOver,
     gameOver: room.gameOver,
@@ -141,6 +142,7 @@ function serializeRoom(room) {
     roundOver: room.roundOver, gameOver: room.gameOver, winners: room.winners || null,
     lastAction: room.lastAction || null, lastFinisher: room.lastFinisher || null,
     roundNo: room.roundNo || 0, emptySince: room.emptySince || null,
+    settings: room.settings || null,
     skipTargets: [...(room.skipTargets || [])],
     ready: [...(room.ready || [])],
     tookTurn: [...(room.tookTurn || [])],
@@ -363,6 +365,7 @@ io.on('connection', (socket) => {
       deck: [], discard: [], turnIndex: 0, dealerIndex: 0,
       skipTargets: new Set(), give5: null, ready: new Set(), spectators: [],
       roundOver: false, gameOver: false, winners: null,
+      settings: { layFirstTurn: true }, // Standard: auslegen im ersten Zug erlaubt
     };
     const p = makePlayer(playerId, name);
     p.socketId = socket.id;
@@ -371,6 +374,18 @@ io.on('connection', (socket) => {
     joinedRoom = room; selfId = playerId;
     socket.join(code);
     cb && cb({ ok: true, code });
+    broadcast(room);
+  });
+
+  // Host ändert Raum-Einstellungen (nur in der Lobby, vor Spielstart).
+  socket.on('updateSettings', ({ settings } = {}) => {
+    const room = joinedRoom;
+    if (!room) return;
+    if (room.hostId !== selfId) return fail('Nur der Host kann die Einstellungen ändern.');
+    if (room.started) return fail('Einstellungen sind nach Spielstart gesperrt.');
+    if (!room.settings) room.settings = {};
+    if (settings && typeof settings.layFirstTurn === 'boolean')
+      room.settings.layFirstTurn = settings.layFirstTurn;
     broadcast(room);
   });
 
@@ -578,6 +593,9 @@ io.on('connection', (socket) => {
     if (me.pendingDraw) return fail('Wähle zuerst eine der beiden Karten.');
     if (!me.hasDrawn) return fail('Erst ziehen, dann auslegen.');
     if (me.laidThisRound) return fail('Du hast diese Runde schon ausgelegt.');
+    // Optionale Regel: im eigenen ersten Zug einer Runde darf nicht ausgelegt werden.
+    if (room.settings && room.settings.layFirstTurn === false && !(room.tookTurn && room.tookTurn.has(me.id)))
+      return fail('Auslegen im ersten Zug ist in diesem Raum deaktiviert – auslegen erst ab deinem zweiten Zug dieser Runde.');
     if (!Array.isArray(groups)) return fail('Ungültige Auswahl.');
 
     // IDs -> Karten aus der Hand
