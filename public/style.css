@@ -169,7 +169,10 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
 }
 
 /* Oben: Zug-Banner + Gegner */
-.game-top { padding: 10px 12px 4px; position: relative; z-index: 2; }
+/* padding-top schafft am Handy Platz für Raum-Badge (links) + Menü (rechts),
+   damit die Zug-Anzeige nicht überlappt */
+.game-top { padding: 52px 12px 4px; position: relative; z-index: 2; }
+.turn-banner { position: relative; z-index: 1; }
 .turn-banner {
   text-align: center; font-weight: 800; padding: 10px; border-radius: 12px;
   background: rgba(9,16,28,.55); border: 1px solid rgba(255,255,255,.06);
@@ -401,16 +404,36 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
 .toast.show { bottom: 26px; opacity: 1; }
 .toast.info { background: linear-gradient(120deg,var(--panel2),var(--accent2)); }
 
-/* Verlassen-Button */
-.btn-leave {
-  position: fixed; top: 12px; right: 12px; z-index: 40;
-  padding: 8px 14px; font-size: 13px; font-weight: 700;
-  background: rgba(9,16,28,.7); color: rgba(255,255,255,.85);
-  border: 1px solid rgba(255,255,255,.15); border-radius: 10px; cursor: pointer;
-  backdrop-filter: blur(4px); transition: filter .15s, transform .06s;
+/* Menü-Button (☰) oben rechts – bündelt Wertung & Verlassen, damit oben nichts überlappt */
+.menu-btn {
+  position: fixed; top: 12px; right: 12px; z-index: 60;
+  width: 44px; height: 44px; font-size: 22px; line-height: 1;
+  background: rgba(9,16,28,.75); color: #fff;
+  border: 1px solid rgba(255,255,255,.18); border-radius: 12px; cursor: pointer;
+  backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center;
+  transition: filter .15s, transform .06s;
 }
-.btn-leave:hover { filter: brightness(1.15); }
-.btn-leave:active { transform: scale(.96); }
+.menu-btn:hover { filter: brightness(1.15); }
+.menu-btn:active { transform: scale(.94); }
+
+.menu-backdrop { position: fixed; inset: 0; z-index: 61; background: rgba(4,7,14,.5); backdrop-filter: blur(2px); }
+.menu-drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 62;
+  width: min(82vw, 300px); transform: translateX(100%); transition: transform .25s ease;
+  background: linear-gradient(180deg, var(--panel2), var(--panel));
+  border-left: 1px solid var(--line); box-shadow: -12px 0 40px rgba(0,0,0,.55);
+  padding: 16px calc(16px + env(safe-area-inset-right, 0px)) 16px 16px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.menu-drawer.open { transform: translateX(0); }
+.menu-head { display: flex; align-items: center; justify-content: space-between; font-weight: 800; font-size: 18px; }
+.menu-close { background: none; border: none; color: var(--muted); font-size: 22px; cursor: pointer; padding: 4px 10px; border-radius: 8px; }
+.menu-close:hover { color: #fff; }
+.menu-room {
+  font-family: 'SF Mono', Menlo, monospace; font-weight: 800; letter-spacing: 1px; color: var(--gold);
+  font-size: 16px; padding: 4px 0 12px; border-bottom: 1px solid var(--line); margin-bottom: 4px;
+}
+.menu-item { width: 100%; margin: 0; text-align: center; }
 
 /* Raum-Code-Badge (immer sichtbar im Spiel/Lobby) */
 .room-badge {
@@ -489,15 +512,6 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
 .rejoin-box .hint { margin: 6px 0 0; }
 
 /* ---- Wertungsblatt ---- */
-.btn-score {
-  position: fixed; top: 12px; right: 132px; z-index: 40;
-  padding: 8px 12px; font-size: 13px; font-weight: 700;
-  background: rgba(9,16,28,.72); color: #fff;
-  border: 1px solid rgba(255,255,255,.15); border-radius: 10px; cursor: pointer;
-  backdrop-filter: blur(4px); transition: filter .15s, transform .06s;
-}
-.btn-score:hover { filter: brightness(1.15); }
-.btn-score:active { transform: scale(.96); }
 .sheet-wrap { overflow-x: auto; margin: 14px 0 6px; -webkit-overflow-scrolling: touch; }
 .sheet-table { border-collapse: collapse; width: 100%; font-size: 14px; }
 .sheet-table th, .sheet-table td { padding: 7px 9px; border-bottom: 1px solid var(--line); text-align: center; white-space: nowrap; }

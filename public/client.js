@@ -42,9 +42,18 @@ const $ = (id) => document.getElementById(id);
 function show(screen) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   $(screen).classList.add('active');
-  $('btn-leave').classList.toggle('hidden', screen === 'screen-login');
+  // Menü (☰) nur außerhalb des Logins; Wertung nur im Spiel
+  $('menu-btn').classList.toggle('hidden', screen === 'screen-login');
   $('btn-score').classList.toggle('hidden', screen !== 'screen-game');
+  if (screen === 'screen-login') closeMenu();
 }
+
+// ---------- Ausklappbares Menü (oben rechts) ----------
+function openMenu() { $('menu-drawer').classList.add('open'); $('menu-backdrop').classList.remove('hidden'); }
+function closeMenu() { $('menu-drawer').classList.remove('open'); $('menu-backdrop').classList.add('hidden'); }
+$('menu-btn').onclick = openMenu;
+$('menu-close').onclick = closeMenu;
+$('menu-backdrop').onclick = closeMenu;
 
 function toast(msg, info) {
   const t = $('toast');
@@ -195,9 +204,10 @@ $('btn-sort').onclick = () => {
 };
 updateSortBtn();
 
-// ---------- Wertungsblatt-Button (Ecke, immer verfügbar) ----------
+// ---------- Wertungsblatt-Button (im Menü) ----------
 $('btn-score').onclick = () => {
   if (!state) return;
+  closeMenu();
   const body = $('scoresheet-body'); body.innerHTML = ''; body.appendChild(scoreSheetEl());
   $('scoresheet').classList.remove('hidden');
 };
@@ -219,6 +229,8 @@ function updateRoomBadge() {
   const b = $('room-badge');
   if (state && state.code) { b.textContent = 'Raum ' + state.code; b.classList.remove('hidden'); }
   else b.classList.add('hidden');
+  const mr = $('menu-room');
+  if (mr) mr.textContent = state && state.code ? 'Raum ' + state.code : '';
 }
 
 // ============================================================

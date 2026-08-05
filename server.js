@@ -110,7 +110,7 @@ function stateFor(room, playerId) {
     myHasDrawn: me ? me.hasDrawn : false,
     myLaidThisRound: me ? me.laidThisRound : false,
     myPendingDraw: me ? me.pendingDraw : null,
-    myKeepAllPending: !!(room.roundOver && me && me.keepAll && !me.keepAllDecided),
+    myKeepAllPending: !!(room.roundOver && me && keepAllPending(me)),
     give5: give5Public(room),
     lastAction: room.lastAction || null,
     lastFinisher: room.lastFinisher || null,
@@ -197,8 +197,8 @@ function startRound(room) {
   }
   const deck = G.shuffle(G.buildDeck());
   for (const p of room.players) {
-    if (p.keepAll && p.keepAllKeep) {
-      // "Alles meins!": Handkarten behalten (Spieler hat sich dafür entschieden), bis 10 auffüllen.
+    if (p.keepAll && p.keepAllKeep && !p.completedPhase) {
+      // "Alles meins!": Handkarten behalten (nur wer die Phase NICHT geschafft hat), bis 10 auffüllen.
       while (p.hand.length < 10) p.hand.push(deck.shift());
     } else {
       p.hand = deck.splice(0, 10);
@@ -235,6 +235,11 @@ function startRound(room) {
 // In Runde 1 darf niemand rausgehen, bis jeder einmal dran war (Ausgesetzte zählen als dran).
 function round1BlocksOut(room) {
   return room.roundNo === 1 && !room.players.every(p => room.tookTurn && room.tookTurn.has(p.id));
+}
+
+// "Alles meins!"-Entscheidung steht noch aus? (Wer die Phase geschafft hat, darf NICHT behalten.)
+function keepAllPending(p) {
+  return p.keepAll && !p.keepAllDecided && !p.completedPhase;
 }
 
 function replenishDeckIfNeeded(room) {
@@ -437,7 +442,7 @@ io.on('connection', (socket) => {
     const room = joinedRoom;
     if (!room || !room.roundOver || room.gameOver) return;
     const me = room.players.find(p => p.id === selfId);
-    if (me && me.keepAll && !me.keepAllDecided) return fail('Bitte zuerst über „Alles meins!" entscheiden.');
+    if (me && keepAllPending(me)) return fail('Bitte zuerst über „Alles meins!" entscheiden.');
     room.ready = room.ready || new Set();
     room.ready.add(selfId);
     const allReady = room.players.filter(p => p.connected).every(p => room.ready.has(p.id));
@@ -446,11 +451,12 @@ io.on('connection', (socket) => {
   });
 
   // "Alles meins!" – am Rundenende entscheiden: Handkarten behalten oder abgeben.
+  // Wer die Phase geschafft hat, darf NICHT behalten – die Karte verfällt.
   socket.on('keepAllChoice', ({ keep }) => {
     const room = joinedRoom;
     if (!room || !room.roundOver || room.gameOver) return;
     const me = room.players.find(p => p.id === selfId);
-    if (!me || !me.keepAll) return;
+    if (!me || !me.keepAll || me.completedPhase) return;
     me.keepAllKeep = !!keep;
     me.keepAllDecided = true;
     room.ready = room.ready || new Set();
@@ -764,14 +770,11 @@ io.on('connection', (socket) => {
     const asker = room.players.find(p => p.id === g.by);
     const chosen = g.offers[oi];
     asker.hand.push(chosen.card);
-    // Besitzer der genommenen Karte erhält Ersatz vom Nachziehstapel
+    // Besitzer sieht, welche Karte ihm genommen wurde, und erhält Ersatz vom Nachziehstapel
     const owner = room.players.find(p => p.id === chosen.playerId);
+    if (owner) reveal(owner, chosen.card, `${asker.name} nimmt dir diese Karte:`);
     replenishDeckIfNeeded(room);
-    if (owner && room.deck.length) {
-      const rep = room.deck.shift();
-      owner.hand.push(rep);
-      reveal(owner, rep, `${asker.name} hat dir eine Karte genommen – du ziehst nach:`);
-    }
+    if (owner && room.deck.length) owner.hand.push(room.deck.shift());
     // restliche angebotene Karten zurück auf die Hand
     g.offers.forEach((o, i) => {
       if (i === oi) return;
