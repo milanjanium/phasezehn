@@ -5,6 +5,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
+const fs = require('fs');
 const G = require('./game');
 const store = require('./store');
 
@@ -15,6 +16,31 @@ const server = http.createServer(app);
 const io = new Server(server, { pingInterval: 25000, pingTimeout: 60000 });
 
 app.get('/health', (req, res) => res.type('text').send('ok'));
+
+// index.html mit Cache-Busting ausliefern: an style.css/client.js wird eine
+// Version (Datei-Änderungszeit) angehängt, damit Browser nach einem Deploy
+// IMMER die aktuellen Assets laden. Sonst bleiben alte CSS/JS gecacht und die
+// Seite wirkt "kaputt" (z. B. unzentriert oder toter Button).
+function assetVersion() {
+  try {
+    const a = fs.statSync(path.join(__dirname, 'public', 'style.css')).mtimeMs;
+    const b = fs.statSync(path.join(__dirname, 'public', 'client.js')).mtimeMs;
+    return Math.floor(Math.max(a, b)).toString(36);
+  } catch { return Date.now().toString(36); }
+}
+function sendIndex(req, res) {
+  fs.readFile(path.join(__dirname, 'public', 'index.html'), 'utf8', (err, html) => {
+    if (err) return res.status(500).type('text').send('Fehler beim Laden.');
+    const v = assetVersion();
+    html = html
+      .replace('href="style.css"', `href="style.css?v=${v}"`)
+      .replace('src="client.js"', `src="client.js?v=${v}"`);
+    res.set('Cache-Control', 'no-cache');
+    res.type('html').send(html);
+  });
+}
+app.get('/', sendIndex);
+app.get('/index.html', sendIndex);
 app.use(express.static(path.join(__dirname, 'public')));
 
 const PORT = process.env.PORT || 3000;
