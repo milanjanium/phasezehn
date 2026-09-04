@@ -38,6 +38,42 @@ html, body {
 .hidden { display: none !important; }
 
 /* ============================================================
+   Startseite (immer zuerst)
+   ============================================================ */
+#screen-start {
+  align-items: center; justify-content: center; padding: 24px;
+  position: relative; overflow: hidden;
+  background:
+    radial-gradient(65% 55% at 15% 0%, rgba(108,140,255,.28), transparent 60%),
+    radial-gradient(60% 50% at 100% 15%, rgba(255,122,198,.20), transparent 60%),
+    radial-gradient(55% 50% at 82% 100%, rgba(255,204,77,.18), transparent 60%),
+    var(--bg);
+}
+/* schwebende Karten-Motive im Hintergrund */
+#screen-start::before, #screen-start::after {
+  content: ''; position: absolute; border-radius: 22px; pointer-events: none;
+  background: linear-gradient(150deg, rgba(255,255,255,.09), rgba(255,255,255,.02));
+  border: 1px solid rgba(255,255,255,.09);
+}
+#screen-start::before { width: 168px; height: 236px; top: 10%; left: -50px; animation: floatCardA 9s ease-in-out infinite; }
+#screen-start::after  { width: 150px; height: 210px; bottom: 8%; right: -40px; animation: floatCardB 11s ease-in-out infinite; }
+.start-hero { position: relative; z-index: 1; text-align: center; max-width: 460px; width: 100%; }
+.start-logo { font-size: 74px; margin-bottom: 6px; }
+.start-tagline { color: var(--muted); font-size: 17px; line-height: 1.5; margin: 6px 0 34px; }
+.start-play {
+  width: auto; min-width: 260px; margin: 0 auto; padding: 18px 40px;
+  font-size: 20px; letter-spacing: .3px; border-radius: 16px;
+  box-shadow: 0 12px 34px rgba(74,107,255,.45);
+  animation: playPulse 2.6s ease-in-out infinite;
+}
+.start-foot { color: var(--muted); font-size: 13px; margin-top: 22px; opacity: .8; }
+@keyframes playPulse {
+  0%, 100% { transform: translateY(0); box-shadow: 0 12px 34px rgba(74,107,255,.45); }
+  50% { transform: translateY(-3px); box-shadow: 0 18px 44px rgba(74,107,255,.6); }
+}
+@media (max-width: 480px) { .start-logo { font-size: 58px; } .start-play { width: 100%; } }
+
+/* ============================================================
    Login / Lobby
    ============================================================ */
 #screen-login, #screen-lobby { align-items: center; justify-content: center; padding: 20px; position: relative; overflow: hidden; }

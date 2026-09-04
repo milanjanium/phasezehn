@@ -42,11 +42,14 @@ const $ = (id) => document.getElementById(id);
 function show(screen) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   $(screen).classList.add('active');
-  // Menü (☰) nur außerhalb des Logins; Wertung nur im Spiel
-  $('menu-btn').classList.toggle('hidden', screen === 'screen-login');
+  // Menü (☰) nur in Lobby/Spiel; nicht auf Startseite oder Login; Wertung nur im Spiel
+  $('menu-btn').classList.toggle('hidden', screen === 'screen-start' || screen === 'screen-login');
   $('btn-score').classList.toggle('hidden', screen !== 'screen-game');
-  if (screen === 'screen-login') closeMenu();
+  if (screen === 'screen-start' || screen === 'screen-login') closeMenu();
 }
+
+// ---------- Startseite: "Phase 10 spielen" -> Login/Menü ----------
+$('btn-start-play').onclick = () => show('screen-login');
 
 // ---------- Ausklappbares Menü (oben rechts) ----------
 function openMenu() { $('menu-drawer').classList.add('open'); $('menu-backdrop').classList.remove('hidden'); }
