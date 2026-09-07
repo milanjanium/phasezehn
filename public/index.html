@@ -38,6 +38,22 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
           </span>
         </button>
+        <button id="btn-knister-play" class="game-tile">
+          <span class="game-icon knister">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <rect x="3.5" y="3.5" width="17" height="17" rx="4"/>
+              <circle cx="8" cy="8" r="1.4" fill="currentColor" stroke="none"/>
+              <circle cx="16" cy="8" r="1.4" fill="currentColor" stroke="none"/>
+              <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/>
+              <circle cx="8" cy="16" r="1.4" fill="currentColor" stroke="none"/>
+              <circle cx="16" cy="16" r="1.4" fill="currentColor" stroke="none"/>
+            </svg>
+          </span>
+          <span class="game-name">Knister spielen</span>
+          <span class="game-go">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+          </span>
+        </button>
       </div>
     </div>
   </section>
@@ -198,7 +214,60 @@
 
   <div id="toast" class="toast hidden"></div>
 
+  <!-- ===== Knister (eigenständiges Spiel) ===== -->
+  <section id="screen-k-login" class="screen">
+    <div class="card-panel">
+      <h1 class="logo">KNIS<span>TER</span></h1>
+      <p class="subtitle">Würfel-Bingo – online mit Freunden</p>
+      <div id="k-conn" class="conn-status"></div>
+      <label>Dein Name</label>
+      <input id="k-input-name" type="text" placeholder="hier namen eingeben" maxlength="20" autocomplete="off" />
+      <button id="k-btn-create" class="btn primary">Neuen Raum erstellen</button>
+      <div class="divider"><span>oder</span></div>
+      <label>Raum-Code</label>
+      <input id="k-input-code" type="text" placeholder="z.B. AB12" maxlength="4" autocomplete="off" style="text-transform:uppercase" />
+      <button id="k-btn-join" class="btn">Raum beitreten</button>
+      <button id="k-btn-back" class="btn subtle" style="margin-top:14px">← Zurück zur Spielwelt</button>
+      <p id="k-login-error" class="error"></p>
+    </div>
+  </section>
+
+  <section id="screen-k-lobby" class="screen">
+    <div class="card-panel">
+      <h2>Warteraum – Knister</h2>
+      <p class="room-code-label">Raum-Code</p>
+      <div id="k-lobby-code" class="room-code">----</div>
+      <p class="hint">Teile diesen Code – Mitspieler geben ihn beim Beitreten ein.</p>
+      <h3>Spieler</h3>
+      <ul id="k-lobby-players" class="player-list"></ul>
+      <button id="k-btn-start" class="btn primary">Spiel starten</button>
+      <button id="k-btn-leave-lobby" class="btn subtle" style="margin-top:10px">Raum verlassen</button>
+      <p id="k-lobby-hint" class="hint"></p>
+    </div>
+  </section>
+
+  <section id="screen-k-game" class="screen">
+    <div class="k-wrap">
+      <div class="k-top">
+        <div id="k-room-badge" class="k-badge"></div>
+        <div class="k-roundinfo">Runde <span id="k-round">1</span>/25</div>
+        <button id="k-btn-leave" class="btn tiny subtle">Verlassen</button>
+      </div>
+      <div class="k-current">
+        <span class="k-current-label">Gewürfelt</span>
+        <div id="k-current-num" class="k-die">–</div>
+        <div id="k-place-hint" class="k-place-hint"></div>
+      </div>
+      <div id="k-grid" class="k-grid"></div>
+      <div id="k-myscore" class="k-myscore"></div>
+      <div id="k-players" class="k-players"></div>
+    </div>
+    <div id="k-result" class="overlay hidden"></div>
+    <div id="k-toast" class="toast hidden"></div>
+  </section>
+
   <script src="/socket.io/socket.io.js"></script>
   <script src="client.js"></script>
+  <script src="knister.js"></script>
 </body>
 </html>

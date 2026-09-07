@@ -79,6 +79,7 @@ input, textarea, .room-code, .room-badge, .menu-room { -webkit-user-select: text
   display: flex; align-items: center; justify-content: center;
 }
 .game-icon svg { width: 22px; height: 22px; display: block; }
+.game-icon.knister { background: var(--green); }
 .game-name { flex: 1; font-size: 19px; font-weight: 700; }
 .game-go { flex: 0 0 auto; color: var(--muted); width: 22px; height: 22px; transition: transform .15s, color .15s; }
 .game-go svg { width: 100%; height: 100%; display: block; }
@@ -786,3 +787,62 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
   :root { --card-w: 112px; --card-h: 160px; }
   .piles .card { width: 98px; height: 140px; }
 }
+
+/* ============================================================
+   Knister – eigenes Spiel
+   ============================================================ */
+#screen-k-game {
+  flex-direction: column; align-items: center; justify-content: flex-start;
+  height: 100vh; height: 100dvh; overflow-y: auto; background: var(--bg);
+  padding: calc(env(safe-area-inset-top, 0px) + 12px) 14px calc(env(safe-area-inset-bottom, 0px) + 14px);
+}
+.k-wrap { width: 100%; max-width: 460px; display: flex; flex-direction: column; align-items: stretch; gap: 12px; }
+.k-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.k-badge {
+  font-family: 'SF Mono', Menlo, monospace; font-weight: 800; letter-spacing: 1px; color: var(--accent);
+  font-size: 13px; padding: 8px 12px; background: var(--panel); border: 1px solid rgba(47,129,247,.35); border-radius: 10px;
+}
+.k-roundinfo { font-weight: 800; font-size: 15px; color: var(--text); }
+.k-top .btn.tiny { flex: 0 0 auto; }
+
+.k-current { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.k-current-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.4px; }
+.k-die {
+  width: 66px; height: 66px; border-radius: 18px; background: var(--accent); color: #fff;
+  font-size: 34px; font-weight: 900; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 8px 22px rgba(47,129,247,.4), inset 0 1px 0 rgba(255,255,255,.25);
+}
+.k-place-hint { font-size: 13px; color: var(--muted); min-height: 18px; }
+
+.k-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; width: 100%; max-width: 360px; margin: 0 auto; }
+.k-cell {
+  aspect-ratio: 1 / 1; border-radius: 12px; border: 1px solid var(--line);
+  background: var(--panel2); color: var(--text); font-size: 22px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center; cursor: default;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04); transition: background .12s, border-color .12s, transform .1s;
+}
+.k-cell.filled { background: #16324a; border-color: rgba(47,129,247,.3); color: #cfe0ff; }
+.k-cell.open { cursor: pointer; border-color: rgba(47,129,247,.55); box-shadow: inset 0 0 0 1px rgba(47,129,247,.25); animation: kPulse 1.6s ease-in-out infinite; }
+.k-cell.open:hover { background: #223449; transform: translateY(-1px); }
+@keyframes kPulse { 0%,100% { border-color: rgba(47,129,247,.5); } 50% { border-color: rgba(47,129,247,.9); } }
+
+.k-myscore { text-align: center; font-size: 13px; color: var(--muted); }
+
+.k-players { display: flex; flex-direction: column; gap: 6px; }
+.k-player {
+  display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600;
+  background: rgba(255,255,255,.04); border: 1px solid var(--line); border-radius: 11px; padding: 8px 12px;
+}
+.k-player.me { border-color: rgba(47,129,247,.4); }
+.k-player.done { border-color: rgba(47,164,106,.45); }
+.k-player .k-pname { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.k-player .k-fill { color: var(--muted); font-weight: 600; font-size: 13px; }
+.k-player .k-check { color: var(--green); font-weight: 900; }
+.k-player .k-wait { color: var(--muted); }
+
+/* Ergebnis-Overlay */
+.k-result-box { max-width: 420px; }
+.k-winner { color: var(--green); font-weight: 900; font-size: 20px; text-align: center; margin: 4px 0 14px; }
+.k-scores { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.k-score-row { display: flex; justify-content: space-between; padding: 10px 12px; background: rgba(255,255,255,.04); border-radius: 11px; font-weight: 600; }
+.k-score-row .k-score-pts { font-weight: 900; color: var(--accent); }

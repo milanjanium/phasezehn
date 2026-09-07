@@ -8,6 +8,7 @@ const socket = io({
   reconnectionDelayMax: 3000,
   timeout: 20000,
 });
+window.socket = socket; // von knister.js mitgenutzt
 
 // Dauerhafte Spieler-ID pro Gerät (= "Login")
 let playerId = localStorage.getItem('p10-id');

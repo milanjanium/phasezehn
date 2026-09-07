@@ -15,6 +15,9 @@ const server = http.createServer(app);
 // (Handy-Sperre, WLAN-Wechsel), damit die Verbindung nicht ständig abbricht.
 const io = new Server(server, { pingInterval: 25000, pingTimeout: 60000 });
 
+// Knister (eigenständiges Spiel) an denselben Socket.IO-Server hängen
+require('./knister-server')(io);
+
 app.get('/health', (req, res) => res.type('text').send('ok'));
 
 // index.html mit Cache-Busting ausliefern: an style.css/client.js wird eine
@@ -23,9 +26,9 @@ app.get('/health', (req, res) => res.type('text').send('ok'));
 // Seite wirkt "kaputt" (z. B. unzentriert oder toter Button).
 function assetVersion() {
   try {
-    const a = fs.statSync(path.join(__dirname, 'public', 'style.css')).mtimeMs;
-    const b = fs.statSync(path.join(__dirname, 'public', 'client.js')).mtimeMs;
-    return Math.floor(Math.max(a, b)).toString(36);
+    const files = ['style.css', 'client.js', 'knister.js'];
+    const m = files.map(f => { try { return fs.statSync(path.join(__dirname, 'public', f)).mtimeMs; } catch { return 0; } });
+    return Math.floor(Math.max(...m)).toString(36);
   } catch { return Date.now().toString(36); }
 }
 function sendIndex(req, res) {
@@ -34,7 +37,8 @@ function sendIndex(req, res) {
     const v = assetVersion();
     html = html
       .replace('href="style.css"', `href="style.css?v=${v}"`)
-      .replace('src="client.js"', `src="client.js?v=${v}"`);
+      .replace('src="client.js"', `src="client.js?v=${v}"`)
+      .replace('src="knister.js"', `src="knister.js?v=${v}"`);
     res.set('Cache-Control', 'no-cache');
     res.type('html').send(html);
   });
