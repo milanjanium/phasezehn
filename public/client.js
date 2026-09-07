@@ -35,6 +35,7 @@ let showHandPeek = false;         // eigene Karten im Auswahl-Overlay einblenden
 let autoSort = localStorage.getItem('p10-sort') !== 'off'; // Sortierung bleibt aktiv
 let buildGroups = [];      // beim Auslegen: Karten-IDs je Anforderung
 let activeGroup = 0;
+let g5Snapshot = null;     // Give-me-Five: gemerkte Handreihenfolge (abgegebene Karten nur ausgrauen)
 
 const $ = (id) => document.getElementById(id);
 
@@ -238,6 +239,13 @@ $('set-lay-first').onchange = () => {
   socket.emit('updateSettings', { settings: { layFirstTurn: $('set-lay-first').checked } });
 };
 
+// ---------- Admin-Panel (nur Host, während der Runde) ----------
+$('btn-admin-undo').onclick = () => {
+  closeMenu();
+  if (!confirm('Den letzten Zug zurücksetzen? Alle Mitspieler müssen zustimmen.')) return;
+  socket.emit('requestUndo');
+};
+
 // ---------- Piles: ziehen ----------
 $('draw-pile').onclick = () => tryDraw('draw');
 $('discard-pile').onclick = () => tryDraw('discard');
@@ -309,12 +317,55 @@ socket.on('state', (s) => {
     }
   }
 
+  if (!s.give5) g5Snapshot = null; // Give-me-Five vorbei -> Snapshot verwerfen
+
   if (s.gameOver) return renderGameOver();
   if (s.roundOver) return renderRoundOver();
+  if (s.undoVote) return renderUndoVote();
   if (s.give5) return renderGive5();
   if (s.myPendingDraw) return renderPendingDraw();
   showHandPeek = false;
   $('overlay').classList.add('hidden');
+});
+
+// Admin will einen Zug zurücksetzen -> Bestätigung/Warten
+function renderUndoVote() {
+  const v = state.undoVote;
+  if (v.by === playerId || v.iApproved || !v.isPlayer) {
+    showOverlay('Zug zurücksetzen?',
+      `Zug von ${v.targetName} zurücksetzen – warte auf Bestätigung aller Mitspieler … (${v.approved}/${v.needed})`,
+      null, v.by === playerId ? [{ text: 'Abbrechen', cls: 'subtle', fn: () => socket.emit('cancelUndo') }] : []);
+    return;
+  }
+  const admin = state.players.find(p => p.id === v.by);
+  showOverlay('Zug zurücksetzen?',
+    `${admin ? admin.name : 'Der Admin'} möchte den Zug von ${v.targetName} zurücksetzen. Bist du einverstanden?`,
+    null, [
+      { text: '✓ Einverstanden', cls: 'good', fn: () => socket.emit('undoVoteResponse', { approve: true }) },
+      { text: 'Ablehnen', cls: 'danger', fn: () => socket.emit('undoVoteResponse', { approve: false }) },
+    ]);
+}
+
+// Joker/Karte passt an mehrere Stellen einer Folge -> Position wählen
+socket.on('chooseHitPlacement', ({ options }) => {
+  showOverlay('Wohin anlegen?', 'Die Karte passt an mehrere Stellen – wähle die Reihenfolge:', (body) => {
+    (options || []).forEach((seq, i) => {
+      let label = 'Diese Reihenfolge';
+      if (seq[0] && seq[0].value === 'joker') label = '◀ Links anlegen';
+      else if (seq[seq.length - 1] && seq[seq.length - 1].value === 'joker') label = 'Rechts anlegen ▶';
+      const opt = document.createElement('div'); opt.className = 'place-opt';
+      const lab = document.createElement('div'); lab.className = 'place-label'; lab.textContent = label;
+      const row = document.createElement('div'); row.className = 'g5-offers place-row';
+      seq.forEach(card => {
+        const ce = cardEl(card, true);
+        if (card.value === 'joker') ce.classList.add('place-blink');
+        row.appendChild(ce);
+      });
+      opt.appendChild(lab); opt.appendChild(row);
+      opt.onclick = () => { socket.emit('placeHit', { choiceIndex: i }); $('overlay').classList.add('hidden'); };
+      body.appendChild(opt);
+    });
+  }, []);
 });
 
 // ============================================================
@@ -434,6 +485,10 @@ function renderLobby() {
 //  Spielbrett
 // ============================================================
 function renderGame() {
+  // Admin-Panel im Menü nur für den Host während einer laufenden Runde
+  const showAdmin = !!(state.isHost && state.started && !state.roundOver && !state.gameOver);
+  $('admin-panel').classList.toggle('hidden', !showAdmin);
+
   // Zug-Banner
   const banner = $('turn-banner');
   const turnP = state.players.find(p => p.id === state.turnPlayerId);
@@ -534,6 +589,9 @@ function renderGame() {
 // Zentrale Tisch-Auslage: alle ausgelegten Phasen
 function renderMeldsTable() {
   const t = $('melds-table'); t.innerHTML = '';
+  // Anlegen ist direkt möglich, sobald man ausgelegt hat (kein extra Modus/Bestätigung)
+  const canAnlegen = isMyTurn() && state.myHasDrawn && state.myLaidThisRound
+    && mode !== 'lay' && !state.roundOver && !state.give5;
   const withMelds = state.players.filter(p => p.laidGroups && p.laidGroups.length);
   if (!withMelds.length) {
     t.innerHTML = '<div class="melds-empty">Noch keine Phasen ausgelegt – der Tisch ist frei.</div>';
@@ -550,7 +608,7 @@ function renderMeldsTable() {
     p.laidGroups.forEach((g, gi) => {
       const gd = document.createElement('div'); gd.className = 'meld-group';
       g.cards.forEach(c => gd.appendChild(cardEl(c, true)));
-      if (mode === 'hit') { gd.classList.add('hittable'); gd.onclick = () => doHit(p.id, gi); }
+      if (canAnlegen) { gd.classList.add('hittable'); gd.onclick = () => doHit(p.id, gi); }
       groups.appendChild(gd);
     });
     block.appendChild(groups);
@@ -593,12 +651,14 @@ function onCardTap(card) {
     renderBuildArea(); renderHand();
     return;
   }
-  if (mode === 'hit') {
+  // Nach dem Auslegen: Mehrfachauswahl (zum Anlegen); eine einzelne Karte kann
+  // per Button abgelegt werden. So kann man direkt an Auslagen anlegen.
+  if (state.myLaidThisRound) {
     if (selected.has(card.id)) selected.delete(card.id); else selected.add(card.id);
     renderHand(); renderControls();
     return;
   }
-  // idle: Doppeltipp = direkt ablegen/spielen (flüssig); Einzeltipp = auswählen
+  // Vor dem Auslegen: Doppeltipp = direkt ablegen/spielen (flüssig); Einzeltipp = auswählen
   const now = Date.now();
   if (lastTap.id === card.id && now - lastTap.t < 400) {
     lastTap = { id: null, t: 0 };
@@ -629,19 +689,23 @@ function renderControls() {
   if (!isMyTurn()) { build.classList.add('hidden'); return; }
   if (!state.myHasDrawn) { build.classList.add('hidden'); c.innerHTML = '<p class="hint">Tippe auf „Nachziehen" oder die Ablage.</p>'; return; }
 
-  if (mode === 'idle') {
-    build.classList.add('hidden');
-    if (!state.myLaidThisRound) c.appendChild(btn('Phase auslegen', 'primary', startLay));
-    if (state.myLaidThisRound) c.appendChild(btn('Anlegen', '', startHit));
-    const sel = selected.size === 1 ? state.myHand.find(x => x.id === [...selected][0]) : null;
-    const actSel = sel && isActionCard(sel);
+  if (mode === 'lay') {
+    renderBuildArea();
+    c.appendChild(btn('Auslegen bestätigen', 'primary', confirmLay));
+    c.appendChild(btn('Abbrechen', 'danger', cancelBuild));
+    return;
+  }
+
+  build.classList.add('hidden');
+  const sel = selected.size === 1 ? state.myHand.find(x => x.id === [...selected][0]) : null;
+  const actSel = sel && isActionCard(sel);
+
+  if (!state.myLaidThisRound) {
+    // Vor dem Auslegen
+    c.appendChild(btn('Phase auslegen', 'primary', startLay));
     if (actSel) {
-      // Aktionskarte: entweder spielen oder verfallen lassen (für alle sichtbar)
       c.appendChild(btn('▶ Aktion spielen', 'good', () => endTurnWithCard(sel.id)));
-      c.appendChild(btn('Karte verfallen lassen', 'danger', () => {
-        socket.emit('discardAction', { cardId: sel.id });
-        selected.clear(); lastTap = { id: null, t: 0 };
-      }));
+      c.appendChild(letExpireBtn(sel));
     } else {
       const b = btn('Karte ablegen', 'good', doDiscard);
       b.disabled = selected.size !== 1;
@@ -650,19 +714,30 @@ function renderControls() {
     const hint = document.createElement('p'); hint.className = 'hint';
     hint.textContent = 'Tipp: Karte doppelt tippen legt sie sofort ab.';
     c.appendChild(hint);
-  } else if (mode === 'lay') {
-    renderBuildArea();
-    c.appendChild(btn('Auslegen bestätigen', 'primary', confirmLay));
-    c.appendChild(btn('Abbrechen', 'danger', cancelBuild));
-  } else if (mode === 'hit') {
-    build.classList.add('hidden');
-    const note = document.createElement('p'); note.className = 'hint';
-    note.textContent = selected.size
-      ? 'Tippe auf eine Auslage auf dem Tisch, um anzulegen.'
-      : 'Wähle Karten aus deiner Hand, dann tippe auf eine Auslage.';
-    c.appendChild(note);
-    c.appendChild(btn('Fertig', '', cancelBuild));
+  } else {
+    // Nach dem Auslegen: anlegen (Karten wählen + auf Auslage tippen) und/oder ablegen
+    if (actSel) {
+      c.appendChild(btn('▶ Aktion spielen', 'good', () => endTurnWithCard(sel.id)));
+      c.appendChild(letExpireBtn(sel));
+    } else {
+      const b = btn('Karte ablegen', 'good', doDiscard);
+      b.disabled = selected.size !== 1;
+      c.appendChild(b);
+    }
+    const hint = document.createElement('p'); hint.className = 'hint';
+    hint.innerHTML = selected.size
+      ? 'Tippe auf eine Auslage, um die gewählten Karten anzulegen.'
+      : 'Karten wählen und auf eine Auslage tippen zum Anlegen · letzte Karte anlegen oder ablegen beendet die Runde.';
+    c.appendChild(hint);
   }
+}
+
+// „Karte verfallen lassen" – bewusst unauffällig, damit man nicht aus Versehen tippt
+function letExpireBtn(sel) {
+  return btn('Karte verfallen lassen', 'subtle', () => {
+    socket.emit('discardAction', { cardId: sel.id });
+    selected.clear(); lastTap = { id: null, t: 0 };
+  });
 }
 
 function btn(text, cls, fn) {
@@ -725,10 +800,6 @@ function cancelBuild() {
 }
 
 // ---------- Anlegen (hit) ----------
-function startHit() {
-  mode = 'hit'; selected.clear();
-  renderControls(); renderHand(); renderMeldsTable();
-}
 function doHit(targetId, groupIndex) {
   if (selected.size === 0) return toast('Wähle zuerst Karten aus deiner Hand.');
   // Auswahl NICHT sofort leeren: erfolgreich angelegte Karten verschwinden aus
@@ -832,10 +903,16 @@ function renderGive5() {
       }, []);
     }
   } else if (g.currentOffererId === playerId && g.phase === 'collecting') {
+    // Handreihenfolge einmal merken: abgegebene Karten bleiben an ihrer Stelle
+    // (nur ausgegraut), damit sich beim Klicken nichts verschiebt.
+    if (!g5Snapshot) g5Snapshot = [...state.myHand];
     showOverlay('Give me Five!', `${g.byName} fordert Karten – gib eine ab:`, (body) => {
       const wrap = document.createElement('div'); wrap.className = 'g5-offers';
-      state.myHand.forEach(card => {
-        const ce = cardEl(card); ce.onclick = () => socket.emit('offerCard', { cardId: card.id });
+      g5Snapshot.forEach(card => {
+        const inHand = state.myHand.some(c => c.id === card.id);
+        const ce = cardEl(card);
+        if (inHand) ce.onclick = () => socket.emit('offerCard', { cardId: card.id });
+        else ce.classList.add('g5-given'); // schon abgegeben -> ausgegraut
         wrap.appendChild(ce);
       });
       body.appendChild(wrap);

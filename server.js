@@ -139,6 +139,8 @@ function stateFor(room, playerId) {
     myPendingDraw: me ? me.pendingDraw : null,
     myKeepAllPending: !!(room.roundOver && me && keepAllPending(me)),
     give5: give5Public(room),
+    undoVote: undoVotePublic(room, playerId),
+    isHost: room.hostId === playerId,
     lastAction: room.lastAction || null,
     lastFinisher: room.lastFinisher || null,
     spectator: !me && (room.spectators || []).some(s => s.id === playerId),
@@ -254,10 +256,13 @@ function startRound(room) {
   room.lastFinisher = null;
   room.roundNo = (room.roundNo || 0) + 1; // 1 = erste Runde
   room.tookTurn = new Set();              // wer in dieser Runde schon dran war
+  room.turnHistory = [];                  // Zug-Snapshots (Admin-Rücksetzung), pro Runde
+  room.undoVote = null;
 
   // Startspieler rotiert pro Runde
   room.turnIndex = room.dealerIndex % room.players.length;
   room.players[room.turnIndex].hasDrawn = false;
+  snapshotTurn(room); // erster Zug der Runde
 }
 
 // In Runde 1 darf niemand rausgehen, bis jeder einmal dran war (Ausgesetzte zählen als dran).
@@ -295,6 +300,102 @@ function advanceTurn(room) {
   }
   room.turnIndex = idx;
   room.players[idx].hasDrawn = false;
+  snapshotTurn(room); // Zustand am Zugbeginn merken (für Admin-Rücksetzung)
+}
+
+// Anlegen abschließen: Reihenfolge übernehmen, Karten aus der Hand nehmen,
+// ggf. Runde beenden (Rausgehen per Anlegen der letzten Karte).
+function finishHit(room, me, target, group, cards, orderedCards) {
+  group.cards = orderedCards.slice();
+  const usedIds = new Set(cards.map(c => c.id));
+  me.hand = me.hand.filter(c => !usedIds.has(c.id));
+  if (me.hand.length === 0) {
+    room.lastAction = `${me.name} hat angelegt und ist raus!`;
+    endRound(room, me);
+    broadcast(room);
+    return;
+  }
+  room.lastAction = `${me.name} hat angelegt.`;
+  broadcast(room);
+}
+
+// ---- Admin: Zug rückgängig machen (Snapshots am Zugbeginn) ----
+const clone = (x) => JSON.parse(JSON.stringify(x));
+function snapshotTurn(room) {
+  const cur = currentPlayer(room);
+  if (!cur) return;
+  const snap = {
+    ownerId: cur.id, ownerName: cur.name,
+    deck: clone(room.deck), discard: clone(room.discard),
+    turnIndex: room.turnIndex, dealerIndex: room.dealerIndex, roundNo: room.roundNo,
+    skipTargets: [...(room.skipTargets || [])], tookTurn: [...(room.tookTurn || [])],
+    players: room.players.map(p => ({
+      id: p.id, hand: clone(p.hand), laidGroups: clone(p.laidGroups),
+      phase: p.phase, completedPhase: p.completedPhase, laidThisRound: p.laidThisRound,
+      hasDrawn: p.hasDrawn, pendingDraw: p.pendingDraw ? clone(p.pendingDraw) : null,
+      draw2: p.draw2, keepAll: p.keepAll, keepAllKeep: p.keepAllKeep, keepAllDecided: p.keepAllDecided,
+      score: p.score, roundScores: clone(p.roundScores), finishedGame: p.finishedGame,
+    })),
+  };
+  room.turnHistory = room.turnHistory || [];
+  room.turnHistory.push(snap);
+  if (room.turnHistory.length > 30) room.turnHistory.shift();
+}
+// Welchen Zug würde eine Rücksetzung betreffen? Hat der aktuelle Spieler schon
+// gehandelt -> sein eigener Zug; sonst der vorherige (abgeschlossene) Zug.
+function undoTargetInfo(room) {
+  const hist = room.turnHistory || [];
+  if (!hist.length) return null;
+  const cur = currentPlayer(room);
+  const curActed = cur && (cur.hasDrawn || cur.laidThisRound);
+  if (curActed) return { snap: hist[hist.length - 1], keepLen: hist.length };
+  if (hist.length < 2) return null;
+  return { snap: hist[hist.length - 2], keepLen: hist.length - 1 };
+}
+function restoreSnapshot(room, snap) {
+  room.deck = clone(snap.deck);
+  room.discard = clone(snap.discard);
+  room.turnIndex = snap.turnIndex;
+  room.dealerIndex = snap.dealerIndex;
+  room.roundNo = snap.roundNo;
+  room.skipTargets = new Set(snap.skipTargets);
+  room.tookTurn = new Set(snap.tookTurn);
+  room.give5 = null;
+  room.roundOver = false; room.gameOver = false; room.winners = null;
+  room.lastFinisher = null;
+  for (const ps of snap.players) {
+    const p = room.players.find(x => x.id === ps.id);
+    if (!p) continue;
+    p.hand = clone(ps.hand); p.laidGroups = clone(ps.laidGroups);
+    p.phase = ps.phase; p.completedPhase = ps.completedPhase; p.laidThisRound = ps.laidThisRound;
+    p.hasDrawn = ps.hasDrawn; p.pendingDraw = ps.pendingDraw ? clone(ps.pendingDraw) : null;
+    p.pendingHit = null;
+    p.draw2 = ps.draw2; p.keepAll = ps.keepAll; p.keepAllKeep = ps.keepAllKeep; p.keepAllDecided = ps.keepAllDecided;
+    p.score = ps.score; p.roundScores = clone(ps.roundScores); p.finishedGame = ps.finishedGame;
+  }
+}
+function undoVotePublic(room, playerId) {
+  const v = room.undoVote;
+  if (!v) return null;
+  const connectedIds = room.players.filter(p => p.connected).map(p => p.id);
+  return {
+    by: v.by,
+    targetId: v.targetId, targetName: v.targetName,
+    approved: v.approvals.length,
+    needed: connectedIds.length,
+    iApproved: v.approvals.includes(playerId),
+    isPlayer: room.players.some(p => p.id === playerId),
+  };
+}
+function tryFinishUndo(room) {
+  const v = room.undoVote;
+  if (!v) return;
+  const connectedIds = room.players.filter(p => p.connected).map(p => p.id);
+  if (!connectedIds.every(id => v.approvals.includes(id))) return;
+  restoreSnapshot(room, v.snap);
+  room.turnHistory = (room.turnHistory || []).slice(0, v.keepLen);
+  room.undoVote = null;
+  room.lastAction = `Zug von ${v.targetName} wurde zurückgesetzt.`;
 }
 
 // ---- "Give me Five!" ----
@@ -544,6 +645,7 @@ io.on('connection', (socket) => {
     const room = joinedRoom;
     if (!room || !room.started || room.roundOver) return;
     if (room.give5) return fail('Bitte zuerst „Give me Five!" abschließen.');
+    if (room.undoVote) return fail('Bitte zuerst über die Zug-Rücksetzung abstimmen.');
     const me = currentPlayer(room);
     if (me.id !== selfId) return fail('Du bist nicht am Zug.');
     if (me.pendingDraw) return fail('Wähle zuerst eine der beiden Karten.');
@@ -614,6 +716,7 @@ io.on('connection', (socket) => {
     const room = joinedRoom;
     if (!room || !room.started || room.roundOver) return;
     if (room.give5) return fail('Bitte zuerst „Give me Five!" abschließen.');
+    if (room.undoVote) return fail('Bitte zuerst über die Zug-Rücksetzung abstimmen.');
     const me = currentPlayer(room);
     if (me.id !== selfId) return fail('Du bist nicht am Zug.');
     if (me.pendingDraw) return fail('Wähle zuerst eine der beiden Karten.');
@@ -658,9 +761,11 @@ io.on('connection', (socket) => {
     const room = joinedRoom;
     if (!room || !room.started || room.roundOver) return;
     if (room.give5) return fail('Bitte zuerst „Give me Five!" abschließen.');
+    if (room.undoVote) return fail('Bitte zuerst über die Zug-Rücksetzung abstimmen.');
     const me = currentPlayer(room);
     if (me.id !== selfId) return fail('Du bist nicht am Zug.');
     if (me.pendingDraw) return fail('Wähle zuerst eine der beiden Karten.');
+    if (me.pendingHit) return fail('Bitte zuerst die Anlege-Position wählen.');
     if (!me.hasDrawn) return fail('Erst ziehen.');
     if (!me.laidThisRound) return fail('Du musst zuerst deine eigene Phase auslegen.');
     const target = room.players.find(p => p.id === targetId);
@@ -673,19 +778,88 @@ io.on('connection', (socket) => {
       cards.push(handById.get(id));
     }
     if (cards.length === 0) return fail('Keine Karten gewählt.');
-    const keepMin = round1BlocksOut(room) ? 2 : 1; // Runde 1: nicht bis 1 Karte runter (sonst kein Zugende)
-    if (me.hand.length - cards.length < keepMin) {
-      return fail(round1BlocksOut(room)
-        ? 'In der ersten Runde darf noch niemand rausgehen – erst wenn alle einmal dran waren.'
-        : 'Du musst eine Karte zum Ablegen behalten.');
-    }
 
     const group = target.laidGroups[groupIndex];
     if (!G.canHit(group, cards)) return fail('Karten passen nicht an diese Auslage.');
-    group.cards = group.cards.concat(cards);
-    const usedIds = new Set(cards.map(c => c.id));
-    me.hand = me.hand.filter(c => !usedIds.has(c.id));
-    room.lastAction = `${me.name} hat angelegt.`;
+    // Rausgehen per Anlegen: die letzte Karte anlegen beendet die Runde – außer in Runde 1.
+    if (me.hand.length - cards.length === 0 && round1BlocksOut(room)) {
+      return fail('In der ersten Runde darf noch niemand rausgehen – erst wenn alle einmal dran waren.');
+    }
+
+    // Folgen (run/colorrun): richtige Position bestimmen; bei mehreren Möglichkeiten fragen.
+    if (group.type === 'run' || group.type === 'colorrun') {
+      const arr = G.runArrangements(group.cards.concat(cards));
+      if (arr.length > 1) {
+        me.pendingHit = { targetId, groupIndex, cardIds: cards.map(c => c.id) };
+        socket.emit('chooseHitPlacement', { options: arr.map(a => a.seq) });
+        return; // erst nach Auswahl anwenden
+      }
+      return finishHit(room, me, target, group, cards, arr.length ? arr[0].seq : group.cards.concat(cards));
+    }
+    finishHit(room, me, target, group, cards, group.cards.concat(cards));
+  });
+
+  // Anlege-Position gewählt (bei mehrdeutiger Joker-Platzierung)
+  socket.on('placeHit', ({ choiceIndex }) => {
+    const room = joinedRoom;
+    if (!room || !room.started || room.roundOver) return;
+    const me = currentPlayer(room);
+    if (me.id !== selfId || !me.pendingHit) return;
+    const ph = me.pendingHit;
+    const target = room.players.find(p => p.id === ph.targetId);
+    if (!target || !target.laidGroups[ph.groupIndex]) { me.pendingHit = null; return; }
+    const handById = new Map(me.hand.map(c => [c.id, c]));
+    const cards = [];
+    for (const id of ph.cardIds) {
+      if (!handById.has(id)) { me.pendingHit = null; return fail('Karte nicht mehr auf der Hand.'); }
+      cards.push(handById.get(id));
+    }
+    const group = target.laidGroups[ph.groupIndex];
+    const arr = G.runArrangements(group.cards.concat(cards));
+    const seq = (arr[choiceIndex] && arr[choiceIndex].seq) || (arr[0] && arr[0].seq) || group.cards.concat(cards);
+    me.pendingHit = null;
+    finishHit(room, me, target, group, cards, seq);
+  });
+
+  // ---- Admin: Zug rückgängig machen (mit Zustimmung aller) ----
+  socket.on('requestUndo', () => {
+    const room = joinedRoom;
+    if (!room || !room.started) return;
+    if (room.hostId !== selfId) return fail('Nur der Admin kann das.');
+    if (room.roundOver || room.gameOver) return fail('Aktuell nichts zum Zurücksetzen.');
+    if (room.give5) return fail('Bitte zuerst „Give me Five!" abschließen.');
+    if (room.undoVote) return fail('Bitte zuerst über die Zug-Rücksetzung abstimmen.');
+    if (room.undoVote) return fail('Es läuft bereits eine Abstimmung.');
+    const info = undoTargetInfo(room);
+    if (!info) return fail('Kein Zug zum Zurücksetzen vorhanden.');
+    room.undoVote = {
+      by: selfId, targetId: info.snap.ownerId, targetName: info.snap.ownerName,
+      snap: info.snap, keepLen: info.keepLen, approvals: [selfId], // Admin stimmt automatisch zu
+    };
+    tryFinishUndo(room); // falls Admin allein (nur 1 verbundener Spieler)
+    broadcast(room);
+  });
+  socket.on('undoVoteResponse', ({ approve }) => {
+    const room = joinedRoom;
+    const v = room && room.undoVote;
+    if (!v) return;
+    if (!room.players.some(p => p.id === selfId)) return; // nur Mitspieler stimmen ab
+    if (!approve) {
+      const who = room.players.find(p => p.id === selfId);
+      room.undoVote = null;
+      room.lastAction = `${who ? who.name : 'Ein Spieler'} hat die Zug-Rücksetzung abgelehnt.`;
+      broadcast(room);
+      return;
+    }
+    if (!v.approvals.includes(selfId)) v.approvals.push(selfId);
+    tryFinishUndo(room);
+    broadcast(room);
+  });
+  socket.on('cancelUndo', () => {
+    const room = joinedRoom;
+    if (!room || !room.undoVote) return;
+    if (room.hostId !== selfId) return;
+    room.undoVote = null;
     broadcast(room);
   });
 
@@ -693,6 +867,7 @@ io.on('connection', (socket) => {
     const room = joinedRoom;
     if (!room || !room.started || room.roundOver) return;
     if (room.give5) return fail('Bitte zuerst „Give me Five!" abschließen.');
+    if (room.undoVote) return fail('Bitte zuerst über die Zug-Rücksetzung abstimmen.');
     const me = currentPlayer(room);
     if (me.id !== selfId) return fail('Du bist nicht am Zug.');
     if (me.pendingDraw) return fail('Wähle zuerst eine der beiden Karten.');
@@ -722,6 +897,7 @@ io.on('connection', (socket) => {
     const room = joinedRoom;
     if (!room || !room.started || room.roundOver) return;
     if (room.give5) return fail('Bitte zuerst „Give me Five!" abschließen.');
+    if (room.undoVote) return fail('Bitte zuerst über die Zug-Rücksetzung abstimmen.');
     const me = currentPlayer(room);
     if (me.id !== selfId) return fail('Du bist nicht am Zug.');
     if (me.pendingDraw) return fail('Wähle zuerst eine der beiden Karten.');
@@ -747,6 +923,7 @@ io.on('connection', (socket) => {
     const room = joinedRoom;
     if (!room || !room.started || room.roundOver) return;
     if (room.give5) return fail('Bitte zuerst „Give me Five!" abschließen.');
+    if (room.undoVote) return fail('Bitte zuerst über die Zug-Rücksetzung abstimmen.');
     const me = currentPlayer(room);
     if (me.id !== selfId) return fail('Du bist nicht am Zug.');
     if (me.pendingDraw) return fail('Wähle zuerst eine der beiden Karten.');

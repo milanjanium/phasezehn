@@ -176,6 +176,13 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
 .btn.tiny { width: auto; padding: 7px 14px; font-size: 13px; margin: 0; }
 .btn.danger { background: var(--red); border: none; color: #fff; }
 .btn.good { background: var(--green); border: none; color: #fff; box-shadow: 0 5px 16px rgba(47,164,106,.26); }
+/* Unauffälliger Button (z.B. „Karte verfallen lassen") – nicht fett, kein Farbklotz */
+.btn.subtle {
+  background: transparent; color: var(--muted); border: 1px solid var(--line);
+  font-weight: 500; font-size: 14px; box-shadow: none; min-height: 42px;
+  flex: 0 0 auto; padding: 9px 14px;
+}
+.btn.subtle:hover { color: var(--text); border-color: #3a4757; }
 
 .divider { text-align: center; margin: 20px 0 6px; position: relative; color: var(--muted); }
 .divider::before { content:''; position:absolute; top:50%; left:0; right:0; height:1px; background:#2a3542; }
@@ -530,6 +537,20 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
 .g5-offers { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 16px; }
 .g5-offers .card { cursor: pointer; transition: transform .1s, box-shadow .1s; }
 .g5-offers .card:hover { transform: translateY(-8px); box-shadow: 0 0 0 3px var(--accent), 0 10px 20px rgba(0,0,0,.5); }
+/* Give-me-Five: bereits abgegebene Karte – nur ausgegraut, bleibt an ihrem Platz */
+.g5-offers .card.g5-given { opacity: .3; filter: grayscale(1); cursor: default; pointer-events: none; }
+
+/* Admin-Panel im Menü */
+.admin-panel { border-top: 1px solid var(--line); padding-top: 10px; margin-top: 2px; display: flex; flex-direction: column; gap: 8px; }
+.admin-title { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.4px; }
+
+/* Anlege-Position wählen (Joker in Folge) */
+.place-opt { border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; margin-top: 12px; cursor: pointer; transition: border-color .15s, background .15s; }
+.place-opt:hover { border-color: var(--accent); background: rgba(47,129,247,.08); }
+.place-label { font-size: 13px; font-weight: 700; color: var(--accent); margin-bottom: 8px; }
+.place-row { margin-top: 0; }
+.place-blink { animation: placeBlink 1s ease-in-out infinite; }
+@keyframes placeBlink { 0%,100% { box-shadow: 0 0 0 2px var(--accent); } 50% { box-shadow: 0 0 0 4px rgba(47,129,247,.35); } }
 
 /* Master-Badge auf der Startseite */
 .master-badge {

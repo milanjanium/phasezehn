@@ -161,8 +161,42 @@ function canHit(group, cards) {
   return groupOk(group.cards.concat(cards), group.type);
 }
 
+// Ordnet die Karten einer Folge (run/colorrun) korrekt an. Gibt ALLE gültigen
+// Anordnungen zurück (je Fenster-Startwert eine). Mehrere Anordnungen = der
+// Joker/die Karte könnte an unterschiedliche Enden → Spieler muss wählen.
+// Jede Anordnung ist ein Array der Karten in Reihenfolge (kleinste Zahl links).
+function runArrangements(cards) {
+  if (cards.some(isAction)) return [];
+  const nums = cards.filter(isNumber);
+  const jokers = cards.filter(isJoker);
+  if (nums.length < 2) return [];
+  const vals = nums.map(c => c.value);
+  if (new Set(vals).size !== vals.length) return [];
+  const L = cards.length;
+  const jl = jokers.filter(j => j.range === 'lo').length;
+  const jh = jokers.filter(j => j.range === 'hi').length;
+  const minV = Math.min(...vals), maxV = Math.max(...vals);
+  if (maxV - minV > L - 1) return [];
+  const byVal = new Map(nums.map(c => [c.value, c]));
+  const loPool = jokers.filter(j => j.range === 'lo');
+  const hiPool = jokers.filter(j => j.range === 'hi');
+  const out = [];
+  for (let s = 1; s + L - 1 <= 12; s++) {
+    if (s > minV || s + L - 1 < maxV) continue;
+    let li = 0, hi = 0, ok = true;
+    const seq = [];
+    for (let v = s; v <= s + L - 1; v++) {
+      if (byVal.has(v)) { seq.push(byVal.get(v)); continue; }
+      if (v <= 6) { if (li < loPool.length) seq.push(loPool[li++]); else { ok = false; break; } }
+      else { if (hi < hiPool.length) seq.push(hiPool[hi++]); else { ok = false; break; } }
+    }
+    if (ok && li === jl && hi === jh) out.push({ start: s, seq });
+  }
+  return out;
+}
+
 module.exports = {
   COLORS, PHASES, ACTIONS, buildDeck, shuffle,
   isJoker, isAction, isNumber, isSpecial, cardPoints,
-  validatePhase, validGroup, canHit,
+  validatePhase, validGroup, canHit, runArrangements,
 };
