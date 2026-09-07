@@ -423,6 +423,13 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
 /* Spiel-Buttons kompakter – sparen Platz, bleiben aber gut tippbar */
 .controls .btn { width: auto; flex: 1; min-width: 118px; max-width: 260px; margin: 0; padding: 10px 14px; min-height: 44px; font-size: 15px; border-radius: 12px; }
 .controls .hint { width: 100%; text-align: center; margin: 0; color: rgba(255,255,255,.7); }
+/* „Aktionskarte verfallen lassen" – kleiner Textlink, klar unter den Buttons abgesetzt */
+.controls .expire-link {
+  width: 100%; margin: 4px 0 0; padding: 6px; background: none; border: none; min-height: 0;
+  color: var(--muted); font-size: 12.5px; text-decoration: underline; text-underline-offset: 3px;
+  cursor: pointer; opacity: .85; transition: color .15s, opacity .15s;
+}
+.controls .expire-link:hover { color: var(--text); opacity: 1; }
 
 .build-area {
   background: rgba(9,16,28,.6); border: 1px dashed rgba(255,255,255,.25); border-radius: 14px;

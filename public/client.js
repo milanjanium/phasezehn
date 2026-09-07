@@ -214,15 +214,22 @@ $('settings-close').onclick = () => $('settings-modal').classList.add('hidden');
 // Spiegelt den aktuellen Serverzustand ins Modal; Host darf ändern, sonst nur lesen.
 function syncSettingsModal() {
   const host = isRoomHost();
-  const layFirst = !(state && state.settings && state.settings.layFirstTurn === false);
+  const s = (state && state.settings) || {};
   const cb = $('set-lay-first');
-  cb.checked = layFirst;
+  cb.checked = !(s.layFirstTurn === false);
   cb.disabled = !host;
+  const cb2 = $('set-out-first');
+  cb2.checked = !(s.outFirstRound === false);
+  cb2.disabled = !host;
   $('settings-readonly').classList.toggle('hidden', host);
 }
 $('set-lay-first').onchange = () => {
   if (!isRoomHost()) return;
   socket.emit('updateSettings', { settings: { layFirstTurn: $('set-lay-first').checked } });
+};
+$('set-out-first').onchange = () => {
+  if (!isRoomHost()) return;
+  socket.emit('updateSettings', { settings: { outFirstRound: $('set-out-first').checked } });
 };
 
 // ---------- Admin-Panel (nur Host, während der Runde) ----------
@@ -452,10 +459,12 @@ function renderLobby() {
     }
     ul.appendChild(li);
   }
-  const layFirst = !(state.settings && state.settings.layFirstTurn === false);
-  $('lobby-rules').textContent = layFirst
-    ? '🃏 Auslegen im ersten Zug: erlaubt'
-    : '🃏 Auslegen im ersten Zug: gesperrt (erst ab dem zweiten Zug)';
+  const s = state.settings || {};
+  const layFirst = !(s.layFirstTurn === false);
+  const outFirst = !(s.outFirstRound === false);
+  $('lobby-rules').innerHTML =
+    `🃏 Auslegen im ersten Zug: ${layFirst ? 'erlaubt' : 'gesperrt'}<br>` +
+    `🚪 Rauskommen in Runde 1: ${outFirst ? 'erlaubt' : 'gesperrt'}`;
   const isHost = state.hostId === playerId;
   $('btn-settings').classList.toggle('hidden', !isHost);
   // Offenes Einstellungs-Modal live nachziehen (z.B. bei Host-Wechsel/Reconnect)
@@ -691,41 +700,36 @@ function renderControls() {
   if (!state.myLaidThisRound) {
     // Vor dem Auslegen
     c.appendChild(btn('Phase auslegen', 'primary', startLay));
-    if (actSel) {
-      c.appendChild(btn('▶ Aktion spielen', 'good', () => endTurnWithCard(sel.id)));
-      c.appendChild(letExpireBtn(sel));
-    } else {
-      const b = btn('Karte ablegen', 'good', doDiscard);
-      b.disabled = selected.size !== 1;
-      c.appendChild(b);
-    }
+    if (actSel) c.appendChild(btn('▶ Aktion spielen', 'good', () => endTurnWithCard(sel.id)));
+    else { const b = btn('Karte ablegen', 'good', doDiscard); b.disabled = selected.size !== 1; c.appendChild(b); }
     const hint = document.createElement('p'); hint.className = 'hint';
     hint.textContent = 'Tipp: Karte doppelt tippen legt sie sofort ab.';
     c.appendChild(hint);
   } else {
     // Nach dem Auslegen: anlegen (Karten wählen + auf Auslage tippen) und/oder ablegen
-    if (actSel) {
-      c.appendChild(btn('▶ Aktion spielen', 'good', () => endTurnWithCard(sel.id)));
-      c.appendChild(letExpireBtn(sel));
-    } else {
-      const b = btn('Karte ablegen', 'good', doDiscard);
-      b.disabled = selected.size !== 1;
-      c.appendChild(b);
-    }
+    if (actSel) c.appendChild(btn('▶ Aktion spielen', 'good', () => endTurnWithCard(sel.id)));
+    else { const b = btn('Karte ablegen', 'good', doDiscard); b.disabled = selected.size !== 1; c.appendChild(b); }
     const hint = document.createElement('p'); hint.className = 'hint';
     hint.innerHTML = selected.size
       ? 'Tippe auf eine Auslage, um die gewählten Karten anzulegen.'
       : 'Karten wählen und auf eine Auslage tippen zum Anlegen · letzte Karte anlegen oder ablegen beendet die Runde.';
     c.appendChild(hint);
   }
+  // „Karte verfallen lassen" ganz unten, klar getrennt von den Hauptbuttons – kein Fehlklick
+  if (actSel) c.appendChild(letExpireLink(sel));
 }
 
-// „Karte verfallen lassen" – bewusst unauffällig, damit man nicht aus Versehen tippt
-function letExpireBtn(sel) {
-  return btn('Karte verfallen lassen', 'subtle', () => {
+// „Karte verfallen lassen" – kleiner, klar abgesetzter Link unter den Hauptbuttons,
+// damit man nicht aus Versehen statt „Ablegen"/„Aktion spielen" darauf tippt.
+function letExpireLink(sel) {
+  const a = document.createElement('button');
+  a.className = 'expire-link';
+  a.textContent = 'Aktionskarte verfallen lassen';
+  a.onclick = () => {
     socket.emit('discardAction', { cardId: sel.id });
     selected.clear(); lastTap = { id: null, t: 0 };
-  });
+  };
+  return a;
 }
 
 function btn(text, cls, fn) {

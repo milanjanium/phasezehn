@@ -265,9 +265,10 @@ function startRound(room) {
   snapshotTurn(room); // erster Zug der Runde
 }
 
-// In Runde 1 darf niemand rausgehen, bis jeder einmal dran war (Ausgesetzte zählen als dran).
+// Rauskommen in Runde 1: per Raum-Einstellung. Standard erlaubt; ist es
+// deaktiviert, darf in Runde 1 niemand rausgehen (Hand nie auf 0 bringen).
 function round1BlocksOut(room) {
-  return room.roundNo === 1 && !room.players.every(p => room.tookTurn && room.tookTurn.has(p.id));
+  return room.roundNo === 1 && !!(room.settings && room.settings.outFirstRound === false);
 }
 
 // "Alles meins!"-Entscheidung steht noch aus? (Wer die Phase geschafft hat, darf NICHT behalten.)
@@ -494,7 +495,8 @@ io.on('connection', (socket) => {
       deck: [], discard: [], turnIndex: 0, dealerIndex: 0,
       skipTargets: new Set(), give5: null, ready: new Set(), spectators: [],
       roundOver: false, gameOver: false, winners: null,
-      settings: { layFirstTurn: true }, // Standard: auslegen im ersten Zug erlaubt
+      // Standard: auslegen im ersten Zug erlaubt; Rauskommen in der ersten Runde erlaubt
+      settings: { layFirstTurn: true, outFirstRound: true },
     };
     const p = makePlayer(playerId, name);
     p.socketId = socket.id;
@@ -515,6 +517,8 @@ io.on('connection', (socket) => {
     if (!room.settings) room.settings = {};
     if (settings && typeof settings.layFirstTurn === 'boolean')
       room.settings.layFirstTurn = settings.layFirstTurn;
+    if (settings && typeof settings.outFirstRound === 'boolean')
+      room.settings.outFirstRound = settings.outFirstRound;
     broadcast(room);
   });
 
@@ -783,9 +787,10 @@ io.on('connection', (socket) => {
 
     const group = target.laidGroups[groupIndex];
     if (!G.canHit(group, cards)) return fail('Karten passen nicht an diese Auslage.');
-    // Rausgehen per Anlegen: die letzte Karte anlegen beendet die Runde – außer in Runde 1.
-    if (me.hand.length - cards.length === 0 && round1BlocksOut(room)) {
-      return fail('In der ersten Runde darf noch niemand rausgehen – erst wenn alle einmal dran waren.');
+    // Rauskommen per Anlegen (letzte Karte) beendet die Runde. Ist Rauskommen in
+    // Runde 1 deaktiviert, muss man genug behalten, um noch ablegen zu können.
+    if (round1BlocksOut(room) && me.hand.length - cards.length < 2) {
+      return fail('In diesem Raum ist Rauskommen in der ersten Runde deaktiviert – du musst genug Karten behalten.');
     }
 
     // Folgen (run/colorrun): richtige Position bestimmen; bei mehreren Möglichkeiten fragen.
@@ -878,7 +883,7 @@ io.on('connection', (socket) => {
     if (idx === -1) return fail('Karte nicht auf der Hand.');
     const card = me.hand[idx];
     if (G.isAction(card)) return fail('Aktionskarten werden gespielt, nicht abgelegt.');
-    if (me.hand.length === 1 && round1BlocksOut(room)) return fail('In der ersten Runde darf noch niemand rausgehen – erst wenn alle einmal dran waren.');
+    if (me.hand.length === 1 && round1BlocksOut(room)) return fail('In diesem Raum ist Rauskommen in der ersten Runde deaktiviert.');
 
     me.hand.splice(idx, 1);
     room.discard.push(card);
@@ -908,7 +913,7 @@ io.on('connection', (socket) => {
     if (idx === -1) return fail('Karte nicht auf der Hand.');
     const card = me.hand[idx];
     if (!G.isAction(card)) return fail('Das ist keine Aktionskarte.');
-    if (me.hand.length === 1 && round1BlocksOut(room)) return fail('In der ersten Runde darf noch niemand rausgehen – erst wenn alle einmal dran waren.');
+    if (me.hand.length === 1 && round1BlocksOut(room)) return fail('In diesem Raum ist Rauskommen in der ersten Runde deaktiviert.');
 
     const label = { skip: 'Aussetzen', draw2: 'Nimm zwei', keepall: 'Behalten', give5: 'Give me Five' }[card.value] || 'Aktion';
     me.hand.splice(idx, 1);
@@ -937,7 +942,7 @@ io.on('connection', (socket) => {
 
     // Letzte Handkarte: wirkungslos gespielt, Durchgang endet.
     const isLast = me.hand.length === 1;
-    if (isLast && round1BlocksOut(room)) return fail('In der ersten Runde darf noch niemand rausgehen – erst wenn alle einmal dran waren.');
+    if (isLast && round1BlocksOut(room)) return fail('In diesem Raum ist Rauskommen in der ersten Runde deaktiviert.');
     me.hand.splice(idx, 1);
 
     if (isLast) {
