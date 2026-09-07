@@ -155,15 +155,20 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
   width: 100%; padding: 14px 18px; margin-top: 12px; font-size: 16px; font-weight: 600;
   min-height: 50px; letter-spacing: .2px;
   background: var(--panel2); color: var(--text);
-  border: 1px solid var(--line); border-radius: 14px; cursor: pointer;
-  transition: transform .12s ease, filter .15s, box-shadow .15s, background .15s, border-color .15s;
+  border: 1px solid var(--line); border-radius: 16px; cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+  transition: transform .12s ease, box-shadow .18s ease, background .15s, border-color .15s;
 }
-.btn:hover { filter: brightness(1.06); transform: translateY(-1px); }
-.btn:active { transform: translateY(0) scale(.98); }
-.btn.primary { background: var(--accent); border-color: transparent; color: #fff; box-shadow: 0 6px 18px rgba(47,129,247,.28); }
-.btn.primary:hover { box-shadow: 0 9px 24px rgba(47,129,247,.36); }
-.btn.primary:disabled { opacity: .45; cursor: default; box-shadow: none; filter: none; }
-.btn:disabled { opacity: .45; cursor: default; filter: none; }
+.btn:hover { background: #232f3d; border-color: #3a4a5f; transform: translateY(-1px); }
+.btn:active { transform: translateY(0) scale(.97); }
+.btn:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(47,129,247,.4), inset 0 1px 0 rgba(255,255,255,.05); }
+.btn:disabled { opacity: .4; cursor: default; transform: none; box-shadow: inset 0 1px 0 rgba(255,255,255,.04); }
+
+.btn.primary { background: var(--accent); border-color: transparent; color: #fff;
+  box-shadow: 0 6px 18px rgba(47,129,247,.32), inset 0 1px 0 rgba(255,255,255,.2); }
+.btn.primary:hover { background: #3d8bff; border-color: transparent;
+  box-shadow: 0 10px 26px rgba(47,129,247,.42), inset 0 1px 0 rgba(255,255,255,.2); }
+.btn.primary:disabled { box-shadow: none; }
 
 /* Verbindungsstatus auf dem Login */
 .conn-status { min-height: 0; margin: 0; text-align: center; font-size: 13px; transition: all .2s; }
@@ -174,16 +179,23 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
   animation: connBlink 1.4s ease-in-out infinite;
 }
 @keyframes connBlink { 0%,100% { opacity: 1; } 50% { opacity: .6; } }
-.btn.tiny { width: auto; padding: 7px 14px; font-size: 13px; margin: 0; }
-.btn.danger { background: var(--red); border: none; color: #fff; }
-.btn.good { background: var(--green); border: none; color: #fff; box-shadow: 0 5px 16px rgba(47,164,106,.26); }
+.btn.tiny { width: auto; padding: 8px 15px; font-size: 13px; margin: 0; min-height: 0; border-radius: 11px; }
+.btn.danger { background: var(--red); border-color: transparent; color: #fff;
+  box-shadow: 0 6px 18px rgba(224,85,90,.28), inset 0 1px 0 rgba(255,255,255,.16); }
+.btn.danger:hover { background: #e8696e; border-color: transparent;
+  box-shadow: 0 10px 24px rgba(224,85,90,.38), inset 0 1px 0 rgba(255,255,255,.16); }
+.btn.good { background: var(--green); border-color: transparent; color: #fff;
+  box-shadow: 0 6px 18px rgba(47,164,106,.3), inset 0 1px 0 rgba(255,255,255,.16); }
+.btn.good:hover { background: #34b676; border-color: transparent;
+  box-shadow: 0 10px 26px rgba(47,164,106,.4), inset 0 1px 0 rgba(255,255,255,.16); }
+.btn.good:disabled, .btn.danger:disabled { box-shadow: none; }
 /* Unauffälliger Button (z.B. „Karte verfallen lassen") – nicht fett, kein Farbklotz */
 .btn.subtle {
   background: transparent; color: var(--muted); border: 1px solid var(--line);
   font-weight: 500; font-size: 14px; box-shadow: none; min-height: 42px;
   flex: 0 0 auto; padding: 9px 14px;
 }
-.btn.subtle:hover { color: var(--text); border-color: #3a4757; }
+.btn.subtle:hover { color: var(--text); border-color: #3a4757; background: rgba(255,255,255,.03); }
 
 .divider { text-align: center; margin: 20px 0 6px; position: relative; color: var(--muted); }
 .divider::before { content:''; position:absolute; top:50%; left:0; right:0; height:1px; background:#2a3542; }
@@ -485,14 +497,16 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
 /* Menü-Button (☰) oben rechts – bündelt Wertung & Verlassen, damit oben nichts überlappt */
 .menu-btn {
   position: fixed; top: calc(12px + env(safe-area-inset-top, 0px)); right: calc(12px + env(safe-area-inset-right, 0px)); z-index: 60;
-  width: 44px; height: 44px; font-size: 22px; line-height: 1;
-  background: rgba(9,16,28,.75); color: #fff;
-  border: 1px solid rgba(255,255,255,.18); border-radius: 12px; cursor: pointer;
-  backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center;
-  transition: filter .15s, transform .06s;
+  width: 46px; height: 46px; font-size: 22px; line-height: 1;
+  background: rgba(16,24,36,.82); color: #fff;
+  border: 1px solid rgba(255,255,255,.14); border-radius: 14px; cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.08);
+  backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center;
+  transition: transform .12s ease, background .15s, border-color .15s, box-shadow .18s;
 }
-.menu-btn:hover { filter: brightness(1.15); }
+.menu-btn:hover { background: rgba(28,40,58,.9); border-color: rgba(255,255,255,.24); transform: translateY(-1px); }
 .menu-btn:active { transform: scale(.94); }
+.menu-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(47,129,247,.4); }
 
 .menu-backdrop { position: fixed; inset: 0; z-index: 61; background: rgba(4,7,14,.5); backdrop-filter: blur(2px); }
 .menu-drawer {
@@ -505,8 +519,8 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
 }
 .menu-drawer.open { transform: translateX(0); }
 .menu-head { display: flex; align-items: center; justify-content: space-between; font-weight: 800; font-size: 18px; }
-.menu-close { background: none; border: none; color: var(--muted); font-size: 22px; cursor: pointer; padding: 4px 10px; border-radius: 8px; }
-.menu-close:hover { color: #fff; }
+.menu-close { background: none; border: none; color: var(--muted); font-size: 22px; cursor: pointer; padding: 6px 10px; border-radius: 10px; transition: color .15s, background .15s; }
+.menu-close:hover { color: #fff; background: rgba(255,255,255,.06); }
 .menu-room {
   font-family: 'SF Mono', Menlo, monospace; font-weight: 800; letter-spacing: 1px; color: var(--accent);
   font-size: 16px; padding: 4px 0 12px; border-bottom: 1px solid var(--line); margin-bottom: 4px;
