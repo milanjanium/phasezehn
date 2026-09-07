@@ -377,12 +377,14 @@ function restoreSnapshot(room, snap) {
 function undoVotePublic(room, playerId) {
   const v = room.undoVote;
   if (!v) return null;
-  const connectedIds = room.players.filter(p => p.connected).map(p => p.id);
+  const connected = room.players.filter(p => p.connected);
+  const pending = connected.filter(p => !v.approvals.includes(p.id)).map(p => p.name);
   return {
     by: v.by,
     targetId: v.targetId, targetName: v.targetName,
     approved: v.approvals.length,
-    needed: connectedIds.length,
+    needed: connected.length,
+    pending,
     iApproved: v.approvals.includes(playerId),
     isPlayer: room.players.some(p => p.id === playerId),
   };

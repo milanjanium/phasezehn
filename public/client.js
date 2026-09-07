@@ -32,7 +32,6 @@ let mode = 'idle';         // 'idle' | 'lay' | 'hit'
 let selected = new Set();  // markierte Handkarten
 let lastTap = { id: null, t: 0 }; // für Doppeltipp-Ablegen
 let showHandPeek = false;         // eigene Karten im Auswahl-Overlay einblenden
-let autoSort = localStorage.getItem('p10-sort') !== 'off'; // Sortierung bleibt aktiv
 let buildGroups = [];      // beim Auslegen: Karten-IDs je Anforderung
 let activeGroup = 0;
 let g5Snapshot = null;     // Give-me-Five: gemerkte Handreihenfolge (abgegebene Karten nur ausgrauen)
@@ -178,7 +177,7 @@ socket.on('connect', () => {
   hasConnectedOnce = true;
 });
 
-// ---------- Sortieren (bleibt aktiv, setzt sich nicht mehr zurück) ----------
+// ---------- Sortierung (immer aktiv, phasengerecht) ----------
 // In Farb-/Farbfolge-Phasen nach Farbe, sonst nach Zahl sortieren.
 const COLOR_ORDER = { red: 0, yellow: 1, green: 2, violet: 3 };
 function phaseWantsColor() {
@@ -186,7 +185,6 @@ function phaseWantsColor() {
   return !!(ph && ph.groups.some(g => g.type === 'color' || g.type === 'colorrun'));
 }
 function sortedHand() {
-  if (!autoSort) return state.myHand;
   const numOrder = (c) => (typeof c.value === 'number' ? c.value : c.value === 'joker' ? 100 : 200);
   const colOrder = (c) => (c.color != null ? COLOR_ORDER[c.color] : (c.value === 'joker' ? 90 : 100));
   const byColor = phaseWantsColor();
@@ -195,18 +193,6 @@ function sortedHand() {
       ? (colOrder(a) - colOrder(b) || numOrder(a) - numOrder(b))
       : (numOrder(a) - numOrder(b) || colOrder(a) - colOrder(b)));
 }
-function updateSortBtn() {
-  const b = $('btn-sort');
-  b.textContent = autoSort ? '🔀 Sortiert' : '🔀 Sortieren';
-  b.classList.toggle('active', autoSort);
-}
-$('btn-sort').onclick = () => {
-  autoSort = !autoSort;
-  localStorage.setItem('p10-sort', autoSort ? 'on' : 'off');
-  updateSortBtn();
-  if (state) renderHand();
-};
-updateSortBtn();
 
 // ---------- Wertungsblatt-Button (im Menü) ----------
 $('btn-score').onclick = () => {
@@ -332,8 +318,9 @@ socket.on('state', (s) => {
 function renderUndoVote() {
   const v = state.undoVote;
   if (v.by === playerId || v.iApproved || !v.isPlayer) {
+    const waitFor = (v.pending && v.pending.length) ? `Warte noch auf: ${v.pending.join(', ')}` : 'Warte auf Bestätigung …';
     showOverlay('Zug zurücksetzen?',
-      `Zug von ${v.targetName} zurücksetzen – warte auf Bestätigung aller Mitspieler … (${v.approved}/${v.needed})`,
+      `Zug von ${v.targetName} zurücksetzen. ${waitFor} (${v.approved}/${v.needed})`,
       null, v.by === playerId ? [{ text: 'Abbrechen', cls: 'subtle', fn: () => socket.emit('cancelUndo') }] : []);
     return;
   }
