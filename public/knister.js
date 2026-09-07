@@ -34,6 +34,7 @@
   let kRoom = null;        // aktueller Raum (nur im Speicher – Neuladen startet frisch)
   let kState = null;
   let hasConnectedOnce = false;
+  let lastRolledRound = 0;  // für die Würfelanimation (nur bei neuem Wurf auslösen)
 
   function kShow(id) {
     document.querySelectorAll('.screen').forEach((s) => s.classList.remove('active'));
@@ -90,9 +91,22 @@
   // ---------- Rendern ----------
   function render() {
     const s = kState; if (!s) return;
+    if (!s.started || s.gameOver) lastRolledRound = 0;
     if (!s.started) { kShow('screen-k-lobby'); renderLobby(); return; }
     kShow('screen-k-game'); renderGame();
+    // Neuer Wurf? -> Würfelanimation + blasse Vollbild-Zahl
+    if (!s.gameOver && s.current != null && s.round !== lastRolledRound) {
+      lastRolledRound = s.round;
+      animateRoll(s.current);
+    }
     if (s.gameOver) renderResult(); else $('k-result').classList.add('hidden');
+  }
+
+  function animateRoll(num) {
+    const die = $('k-current-num');
+    if (die) { die.classList.remove('rolling'); void die.offsetWidth; die.classList.add('rolling'); }
+    const fx = $('k-rollfx');
+    if (fx) { fx.textContent = num; fx.classList.remove('show'); void fx.offsetWidth; fx.classList.add('show'); }
   }
 
   function renderLobby() {
@@ -149,9 +163,14 @@
           b.textContent = lineFull(colC(c)) ? String(lineScore(colC(c))) : '';
           grid.appendChild(b);
         } else {
-          const b = document.createElement('div'); b.className = 'k-score-box diag';
-          b.textContent = (lineFull(md) && lineFull(ad)) ? String(lineScore(md) * 2 + lineScore(ad) * 2) : '';
-          grid.appendChild(b);
+          // Ecke: je ein Punktefeld für BEIDE Diagonalen (x2) -> 12 Felder insgesamt
+          const corner = document.createElement('div'); corner.className = 'k-diag-corner';
+          [md, ad].forEach((cells) => {
+            const b = document.createElement('div'); b.className = 'k-score-box diag';
+            b.textContent = lineFull(cells) ? String(lineScore(cells) * 2) : '';
+            corner.appendChild(b);
+          });
+          grid.appendChild(corner);
         }
       }
     }

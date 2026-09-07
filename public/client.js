@@ -51,6 +51,7 @@ function show(screen) {
 
 // ---------- Startseite: "Phase 10 spielen" -> Login/Menü ----------
 $('btn-start-play').onclick = () => show('screen-login');
+$('btn-back-world').onclick = () => show('screen-start');
 
 // ---------- Ausklappbares Menü (oben rechts) ----------
 function openMenu() { $('menu-drawer').classList.add('open'); $('menu-backdrop').classList.remove('hidden'); }

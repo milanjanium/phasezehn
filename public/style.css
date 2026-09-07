@@ -812,14 +812,34 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
   font-size: 34px; font-weight: 900; display: flex; align-items: center; justify-content: center;
   box-shadow: 0 8px 22px rgba(47,129,247,.4), inset 0 1px 0 rgba(255,255,255,.25);
 }
+/* Würfelanimation, wenn eine neue Zahl gewürfelt wurde */
+.k-die.rolling { animation: kRoll .6s ease; }
+@keyframes kRoll {
+  0% { transform: scale(.55) rotate(-30deg); }
+  45% { transform: scale(1.18) rotate(14deg); }
+  70% { transform: scale(.95) rotate(-6deg); }
+  100% { transform: scale(1) rotate(0); }
+}
+/* Blasse Zahl, die einmal groß über den Bildschirm zieht und verblasst */
+.k-rollfx {
+  position: fixed; inset: 0; z-index: 80; pointer-events: none;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--accent); font-weight: 900; font-size: 52vw; line-height: 1; opacity: 0;
+}
+.k-rollfx.show { animation: kRollFx 1.7s ease-out forwards; }
+@keyframes kRollFx {
+  0% { opacity: 0; transform: scale(.5); }
+  16% { opacity: .32; }
+  100% { opacity: 0; transform: scale(1.7); }
+}
 .k-place-hint { font-size: 13px; color: var(--muted); min-height: 18px; }
 
 /* 6x6-Raster: 5x5 Zahlenfelder + Punktefelder am rechten/unteren Rand + Diagonalen-Ecke */
 .k-grid {
-  --kc: min(15vw, 58px);
+  --kc: min(14.5vw, 56px);
   display: grid; justify-content: center; margin: 0 auto; width: max-content; max-width: 100%;
-  grid-template-columns: repeat(5, var(--kc)) calc(var(--kc) * .62);
-  grid-template-rows: repeat(5, var(--kc)) calc(var(--kc) * .62);
+  grid-template-columns: repeat(5, var(--kc)) calc(var(--kc) * .78);
+  grid-template-rows: repeat(5, var(--kc)) calc(var(--kc) * .78);
   gap: 5px;
 }
 .k-cell {
@@ -837,15 +857,18 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
 .k-cell.diag { background: rgba(47,129,247,.08); border-color: rgba(47,129,247,.28); }
 .k-cell.diag.filled { background: #16324a; border-color: rgba(47,129,247,.45); color: #cfe0ff; }
 /* offene Diagonalfelder nutzen den normalen blauen Puls (.k-cell.open) */
-/* 11 Punktefelder am Rand – quadratisch, zentriert im jeweiligen Randfeld */
+/* 12 Punktefelder am Rand – quadratisch, zentriert im jeweiligen Randfeld */
 .k-score-box {
-  width: calc(var(--kc) * .6); height: calc(var(--kc) * .6);
+  width: calc(var(--kc) * .62); height: calc(var(--kc) * .62);
   align-self: center; justify-self: center;
   display: flex; align-items: center; justify-content: center;
   font-size: 13px; font-weight: 800; color: var(--accent);
   background: rgba(47,129,247,.08); border: 1px solid rgba(47,129,247,.22); border-radius: 8px;
 }
 .k-score-box.diag { background: rgba(47,129,247,.14); border-color: rgba(47,129,247,.35); }
+/* Ecke: zwei kleine quadratische Diagonalen-Felder nebeneinander */
+.k-diag-corner { align-self: center; justify-self: center; display: flex; align-items: center; justify-content: center; gap: 3px; }
+.k-diag-corner .k-score-box { width: calc(var(--kc) * .34); height: calc(var(--kc) * .34); font-size: 10px; border-radius: 6px; }
 
 .k-myscore { text-align: center; font-size: 13px; color: var(--muted); }
 
