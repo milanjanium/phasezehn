@@ -60,7 +60,7 @@ function registerKnister(io) {
       id: p.id, name: p.name, connected: p.connected,
       filled: p.grid.filter(x => x != null).length,
       placedThisRound: room.roundPlaced.has(p.id),
-      score: room.gameOver ? scoreGrid(p.grid) : null,
+      score: scoreGrid(p.grid), // Zwischenstand (fertige Reihen zählen) – immer sichtbar
       grid: room.gameOver ? p.grid : null, // Grids der anderen erst am Ende offen
     };
   }

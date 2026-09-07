@@ -253,7 +253,10 @@
       <div class="k-top">
         <div id="k-room-badge" class="k-badge"></div>
         <div class="k-roundinfo">Runde <span id="k-round">1</span>/25</div>
-        <button id="k-btn-leave" class="btn tiny subtle">Verlassen</button>
+        <div class="k-top-btns">
+          <button id="k-btn-info" class="btn tiny subtle">Punkte</button>
+          <button id="k-btn-leave" class="btn tiny subtle">Verlassen</button>
+        </div>
       </div>
       <div class="k-current">
         <span class="k-current-label">Gewürfelt</span>
@@ -265,6 +268,7 @@
       <div id="k-players" class="k-players"></div>
     </div>
     <div id="k-rollfx" class="k-rollfx" aria-hidden="true"></div>
+    <div id="k-info" class="overlay hidden"></div>
     <div id="k-result" class="overlay hidden"></div>
     <div id="k-toast" class="toast hidden"></div>
   </section>

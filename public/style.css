@@ -890,3 +890,18 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
 .k-scores { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
 .k-score-row { display: flex; justify-content: space-between; padding: 10px 12px; background: rgba(255,255,255,.04); border-radius: 11px; font-weight: 600; }
 .k-score-row .k-score-pts { font-weight: 900; color: var(--accent); }
+
+/* Knister – Info-Popup (Tabs: Punktestand / Wertung) */
+.k-top-btns { display: flex; gap: 6px; flex: 0 0 auto; }
+.k-info-box { max-width: 420px; }
+.k-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+.k-tab {
+  flex: 1; padding: 11px 10px; border-radius: 12px; cursor: pointer;
+  background: transparent; border: 1px solid var(--line); color: var(--muted);
+  font-weight: 700; font-size: 14px; transition: background .15s, border-color .15s, color .15s;
+}
+.k-tab.active { background: rgba(47,129,247,.14); border-color: var(--accent); color: var(--text); }
+.k-tab-body { max-height: 52vh; overflow-y: auto; }
+.k-wert { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.k-wert-row { display: flex; justify-content: space-between; padding: 11px 13px; background: rgba(255,255,255,.04); border-radius: 11px; font-weight: 600; }
+.k-wert-row .k-wert-pts { font-weight: 900; color: var(--accent); }

@@ -80,6 +80,43 @@
   $('k-btn-leave-lobby').onclick = leaveToWorld;
   $('k-btn-leave').onclick = () => { if (confirm('Knister verlassen?')) leaveToWorld(); };
 
+  // ---------- Info-Popup: Punktestand + Wertung ----------
+  let infoTab = 'stand';
+  $('k-btn-info').onclick = () => { infoTab = 'stand'; renderInfo(); $('k-info').classList.remove('hidden'); };
+  function renderInfo() {
+    const box = $('k-info');
+    box.innerHTML =
+      '<div class="overlay-box k-info-box">' +
+        '<div class="k-tabs">' +
+          `<button class="k-tab${infoTab === 'stand' ? ' active' : ''}" data-t="stand">Punktestand</button>` +
+          `<button class="k-tab${infoTab === 'wert' ? ' active' : ''}" data-t="wert">Wertung</button>` +
+        '</div>' +
+        '<div id="k-tab-body" class="k-tab-body"></div>' +
+        '<div class="overlay-actions"><button class="btn" id="k-info-close">Schließen</button></div>' +
+      '</div>';
+    box.querySelectorAll('.k-tab').forEach((t) => (t.onclick = () => { infoTab = t.dataset.t; renderInfo(); }));
+    $('k-info-close').onclick = () => box.classList.add('hidden');
+    $('k-tab-body').innerHTML = infoTab === 'stand' ? standHtml() : wertHtml();
+  }
+  function standHtml() {
+    const s = kState; if (!s) return '';
+    const sorted = [...s.players].map((p) => ({ name: p.name, score: p.score || 0 })).sort((a, b) => b.score - a.score);
+    let h = '<div class="k-scores">';
+    sorted.forEach((p, i) => { h += `<div class="k-score-row"><span>${i + 1}. ${esc(p.name)}</span><span class="k-score-pts">${p.score}</span></div>`; });
+    h += '</div><p class="hint" style="text-align:center">Zwischenstand – nur volle Reihen zählen.</p>';
+    return h;
+  }
+  function wertHtml() {
+    const rows = [
+      ['Ein Paar', '1'], ['Zwei Paare', '3'], ['Drilling', '3'], ['Vierling', '6'],
+      ['Fünfling', '10'], ['Full House', '8'], ['Straße mit 7', '8'], ['Straße ohne 7', '12'],
+    ];
+    let h = '<div class="k-wert">';
+    rows.forEach((r) => { h += `<div class="k-wert-row"><span>${r[0]}</span><span class="k-wert-pts">${r[1]}</span></div>`; });
+    h += '</div><p class="hint" style="text-align:center">Die beiden Diagonalen zählen doppelt.</p>';
+    return h;
+  }
+
   // ---------- Socket ----------
   socket.on('k:error', (m) => toastK(m));
   socket.on('k:state', (s) => { kState = s; render(); });
