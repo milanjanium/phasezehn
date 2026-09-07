@@ -89,7 +89,7 @@ input, textarea, .room-code, .room-badge, .menu-room { -webkit-user-select: text
 /* ============================================================
    Login / Lobby
    ============================================================ */
-#screen-login, #screen-lobby { align-items: center; justify-content: center; padding: 20px; position: relative; overflow: hidden; }
+#screen-login, #screen-lobby, #screen-k-login, #screen-k-lobby { align-items: center; justify-content: center; padding: 20px; position: relative; overflow: hidden; }
 #screen-login { background: var(--bg); }
 #screen-login::before, #screen-login::after {
   content: ''; position: absolute; border-radius: 22px; pointer-events: none;
@@ -715,7 +715,7 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
    Mobile-App-Look: Login/Lobby als vollflächige Screens
    ============================================================ */
 @media (max-width: 560px) {
-  #screen-login, #screen-lobby { padding: 0; align-items: stretch; }
+  #screen-login, #screen-lobby, #screen-k-login, #screen-k-lobby { padding: 0; align-items: stretch; }
   #screen-login::before, #screen-login::after { display: none; }
   .card-panel {
     max-width: none; width: 100%; min-height: 100dvh;
@@ -724,7 +724,7 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
     padding: calc(env(safe-area-inset-top, 0px) + 34px) 24px calc(env(safe-area-inset-bottom, 0px) + 28px);
   }
   /* Lobby oben ausrichten (kann wachsen), Login mittig */
-  #screen-lobby .card-panel { justify-content: flex-start; }
+  #screen-lobby .card-panel, #screen-k-lobby .card-panel { justify-content: flex-start; }
   /* Startseite: Inhalt mittig, Notch-Abstand */
   #screen-start { padding: calc(env(safe-area-inset-top, 0px) + 24px) 24px calc(env(safe-area-inset-bottom, 0px) + 24px); }
   .btn { font-size: 17px; }
@@ -797,12 +797,12 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
   padding: calc(env(safe-area-inset-top, 0px) + 12px) 14px calc(env(safe-area-inset-bottom, 0px) + 14px);
 }
 .k-wrap { width: 100%; max-width: 460px; display: flex; flex-direction: column; align-items: stretch; gap: 12px; }
-.k-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.k-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .k-badge {
-  font-family: 'SF Mono', Menlo, monospace; font-weight: 800; letter-spacing: 1px; color: var(--accent);
-  font-size: 13px; padding: 8px 12px; background: var(--panel); border: 1px solid rgba(47,129,247,.35); border-radius: 10px;
+  font-family: 'SF Mono', Menlo, monospace; font-weight: 800; letter-spacing: .5px; color: var(--accent);
+  font-size: 12px; padding: 7px 10px; background: var(--panel); border: 1px solid rgba(47,129,247,.35); border-radius: 10px;
 }
-.k-roundinfo { font-weight: 800; font-size: 15px; color: var(--text); }
+.k-roundinfo { font-weight: 800; font-size: 14px; color: var(--text); }
 .k-top .btn.tiny { flex: 0 0 auto; }
 
 .k-current { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 6px; }
