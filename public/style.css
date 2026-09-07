@@ -52,14 +52,32 @@ html, body {
 #screen-start::before { width: 168px; height: 236px; top: 10%; left: -50px; animation: floatCardA 9s ease-in-out infinite; }
 #screen-start::after  { width: 150px; height: 210px; bottom: 8%; right: -40px; animation: floatCardB 11s ease-in-out infinite; }
 .start-hero { position: relative; z-index: 1; text-align: center; max-width: 440px; width: 100%; }
-.worlds-title { font-size: 46px; font-weight: 900; letter-spacing: .5px; margin: 0; color: var(--text); }
-.game-list { display: flex; flex-direction: column; gap: 12px; margin-top: 26px; }
+.site-logo { width: 88px; height: 88px; margin: 0 auto 16px; filter: drop-shadow(0 8px 20px rgba(0,0,0,.45)); }
+.site-logo svg { width: 100%; height: 100%; display: block; }
+.worlds-title { font-size: 62px; font-weight: 900; letter-spacing: .5px; margin: 0; color: var(--text); }
+.game-list { display: flex; flex-direction: column; gap: 12px; margin-top: 30px; }
+/* Moderne Spiel-Kachel: Icon-Badge + Titel + Pfeil (kein Verlauf) */
 .game-tile {
-  width: 100%; margin: 0; padding: 20px 24px; font-size: 19px; letter-spacing: .2px;
-  border-radius: 16px; box-shadow: 0 8px 22px rgba(47,129,247,.24);
+  width: 100%; margin: 0; display: flex; align-items: center; gap: 14px;
+  padding: 16px 18px; border-radius: 16px; cursor: pointer; text-align: left;
+  background: var(--panel2); color: var(--text);
+  border: 1px solid var(--line);
+  box-shadow: 0 6px 20px rgba(0,0,0,.35);
+  transition: transform .12s ease, border-color .15s, box-shadow .15s, background .15s;
 }
-.worlds-foot { color: var(--muted); font-size: 13px; margin: 22px 0 0; }
-@media (max-width: 480px) { .worlds-title { font-size: 38px; } }
+.game-tile:hover { transform: translateY(-2px); border-color: var(--accent); box-shadow: 0 10px 26px rgba(47,129,247,.28); }
+.game-tile:active { transform: translateY(0) scale(.99); }
+.game-icon {
+  flex: 0 0 auto; width: 46px; height: 46px; border-radius: 12px;
+  background: var(--accent); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+}
+.game-icon svg { width: 22px; height: 22px; display: block; }
+.game-name { flex: 1; font-size: 19px; font-weight: 700; }
+.game-go { flex: 0 0 auto; color: var(--muted); width: 22px; height: 22px; transition: transform .15s, color .15s; }
+.game-go svg { width: 100%; height: 100%; display: block; }
+.game-tile:hover .game-go { color: var(--accent); transform: translateX(3px); }
+@media (max-width: 480px) { .worlds-title { font-size: 48px; } }
 
 /* ============================================================
    Login / Lobby

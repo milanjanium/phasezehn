@@ -11,11 +11,25 @@
   <!-- ===== Startseite / Spielwelt ===== -->
   <section id="screen-start" class="screen active">
     <div class="start-hero">
+      <div class="site-logo" aria-hidden="true">
+        <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+          <rect x="12" y="16" width="30" height="42" rx="7" fill="#2ea25f" transform="rotate(-13 27 37)"/>
+          <rect x="22" y="10" width="30" height="42" rx="7" fill="#2f81f7" transform="rotate(10 37 31)"/>
+          <path d="M33 22 L45 31 L33 40 Z" fill="#ffffff" transform="rotate(10 37 31)"/>
+        </svg>
+      </div>
       <h1 class="worlds-title">Spielwelt</h1>
       <div class="game-list">
-        <button id="btn-start-play" class="btn primary game-tile">Phase 10 spielen</button>
+        <button id="btn-start-play" class="game-tile">
+          <span class="game-icon">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+          </span>
+          <span class="game-name">Phase 10 spielen</span>
+          <span class="game-go">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+          </span>
+        </button>
       </div>
-      <p class="worlds-foot">Weitere Spiele folgen bald.</p>
     </div>
   </section>
 
