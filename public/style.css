@@ -232,16 +232,17 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
    Spielbildschirm – Filz-Tisch
    ============================================================ */
 #screen-game {
-  /* Handy: von oben nach unten, bei Bedarf scrollbar (Buttons immer erreichbar) */
+  /* App-Look am Handy: feste Höhe, kein Seiten-Scrollen (nur die Tisch-Auslage scrollt) */
   flex-direction: column; align-items: center; justify-content: flex-start;
   padding: 0;
   background: var(--bg);
+  height: 100vh; height: 100dvh; overflow: hidden;
 }
 .game-wrap {
-  width: 100%; min-height: 100vh; min-height: 100dvh;
+  width: 100%; height: 100vh; height: 100dvh; min-height: 0;
   display: flex; flex-direction: column;
   background: var(--felt);
-  position: relative; overflow: visible;
+  position: relative; overflow: hidden;
 }
 .game-wrap::before {
   content: ''; position: absolute; inset: 0; pointer-events: none;
@@ -251,7 +252,7 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
 /* Oben: Zug-Banner + Gegner */
 /* padding-top schafft am Handy Platz für Raum-Badge (links) + Menü (rechts),
    damit die Zug-Anzeige nicht überlappt */
-.game-top { padding: calc(52px + env(safe-area-inset-top, 0px)) 12px 4px; position: relative; z-index: 2; }
+.game-top { padding: calc(50px + env(safe-area-inset-top, 0px)) 10px 2px; position: relative; z-index: 2; flex: 0 0 auto; }
 .turn-banner { position: relative; z-index: 1; }
 .turn-banner {
   text-align: center; font-weight: 800; padding: 10px; border-radius: 12px;
@@ -269,13 +270,16 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
   50% { box-shadow: 0 0 22px 4px rgba(47,129,247,.5); }
 }
 
-.opponents { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; justify-content: center; flex-wrap: wrap; }
+/* Gegner: eine Zeile, seitlich scrollbar (feste Höhe, egal wie viele Spieler) */
+.opponents { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; justify-content: center; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; }
 .opp {
-  flex: 0 0 auto; min-width: 150px; max-width: 220px;
+  flex: 0 0 auto; min-width: 148px; max-width: 220px;
   background: rgba(9,16,28,.5); border: 1px solid rgba(255,255,255,.08);
-  border-radius: 14px; padding: 9px 11px; backdrop-filter: blur(4px);
+  border-radius: 14px; padding: 8px 10px; backdrop-filter: blur(4px);
   transition: border-color .2s, box-shadow .2s;
 }
+/* Bei vielen Gegnern links beginnen, damit alle erreichbar sind (Scroll) */
+.opponents:has(.opp:nth-child(3)) { justify-content: flex-start; }
 .opp.active { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(47,129,247,.35), 0 6px 20px rgba(0,0,0,.4); }
 .opp-head { display: flex; align-items: center; gap: 9px; }
 .opp-info { min-width: 0; }
@@ -288,7 +292,8 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
 /* Mitte: Phase-Panel, Stapel, Log */
 .game-mid {
   display: flex; align-items: center; justify-content: space-between;
-  gap: 12px; padding: 8px 14px; flex-wrap: wrap; position: relative; z-index: 2;
+  gap: 12px; padding: 6px 12px; flex-wrap: wrap; position: relative; z-index: 2;
+  flex: 0 0 auto;
 }
 .phase-target {
   background: rgba(9,16,28,.55); border: 1px solid rgba(255,255,255,.08);
@@ -374,8 +379,9 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
    Tisch-Auslage (alle ausgelegten Phasen)
    ============================================================ */
 .melds-table {
-  flex: 1; min-height: 60px; overflow-y: auto; position: relative; z-index: 2;
-  padding: 6px 14px; display: flex; flex-direction: column; gap: 8px;
+  flex: 1 1 0; min-height: 0; overflow-y: auto; position: relative; z-index: 2;
+  padding: 6px 12px; display: flex; flex-direction: column; gap: 8px;
+  -webkit-overflow-scrolling: touch;
 }
 .melds-empty {
   margin: auto; color: rgba(255,255,255,.5); font-style: italic; font-size: 14px;
@@ -402,18 +408,18 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
    Hand + Steuerung
    ============================================================ */
 .game-bottom {
-  background: rgba(8,12,18,.82);
+  background: rgba(8,12,18,.9);
   border-top: 1px solid rgba(255,255,255,.08);
-  padding: 10px 14px 16px; border-radius: 22px 22px 0 0;
-  position: relative; z-index: 3;
-  /* kein backdrop-filter hier: würde die fixierte Button-Leiste verankern */
-  /* Platz für die unten fixierte Button-Leiste (Handy) */
-  padding-bottom: calc(104px + env(safe-area-inset-bottom, 0px));
+  padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px)); border-radius: 18px 18px 0 0;
+  position: relative; z-index: 3; flex: 0 0 auto;
+  display: flex; flex-direction: column; max-height: 60vh; min-height: 0;
 }
-.hand-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; color: rgba(255,255,255,.85); font-size: 14px; font-weight: 600; }
+/* Hand + Bau-Bereich scrollen bei Bedarf intern – die Buttons bleiben immer sichtbar */
+.hand-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; }
+.hand-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; color: rgba(255,255,255,.85); font-size: 13px; font-weight: 600; }
 .hand {
-  display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
-  min-height: calc(var(--card-h) + 14px); align-items: flex-end; padding-top: 14px;
+  display: flex; flex-wrap: wrap; gap: 7px; justify-content: center;
+  align-items: flex-end; padding-top: 10px;
 }
 .hand .card { cursor: pointer; transition: transform .12s ease, box-shadow .12s; }
 .hand .card:hover { transform: translateY(-8px); box-shadow: 0 10px 20px rgba(0,0,0,.5); }
@@ -425,15 +431,11 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
 
 .controls {
   display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; align-items: center;
-  /* Buttons am unteren Bildschirmrand fixiert – immer sichtbar/erreichbar */
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
-  padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px));
-  background: rgba(8,12,18,.95);
-  border-top: 1px solid rgba(255,255,255,.09);
-  backdrop-filter: blur(8px);
+  /* Am Handy in-flow unten in der Hand-Leiste – bleibt immer sichtbar (kein Seiten-Scrollen) */
+  position: static; padding: 6px 0 0; margin: 0; flex: 0 0 auto;
 }
 /* Spiel-Buttons kompakter – sparen Platz, bleiben aber gut tippbar */
-.controls .btn { width: auto; flex: 1; min-width: 118px; max-width: 260px; margin: 0; padding: 10px 14px; min-height: 44px; font-size: 15px; border-radius: 12px; }
+.controls .btn { width: auto; flex: 1; min-width: 118px; max-width: 260px; margin: 0; padding: 11px 14px; min-height: 46px; font-size: 15px; border-radius: 13px; }
 .controls .hint { width: 100%; text-align: center; margin: 0; color: rgba(255,255,255,.7); }
 /* „Aktionskarte verfallen lassen" – kleiner Textlink, klar unter den Buttons abgesetzt */
 .controls .expire-link {
@@ -445,7 +447,7 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
 
 .build-area {
   background: rgba(9,16,28,.6); border: 1px dashed rgba(255,255,255,.25); border-radius: 14px;
-  padding: 12px; margin-bottom: 12px;
+  padding: 10px; margin-bottom: 8px;
 }
 .build-area h4 { margin: 0 0 8px; font-size: 14px; }
 .build-groups { display: flex; flex-wrap: wrap; gap: 10px; }
@@ -689,7 +691,7 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
 .spec-eye { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; font-size: 22px; }
 
 /* Viele Handkarten (>10): kleiner darstellen, damit alle sichtbar bleiben */
-.hand.many .card { --card-w: 47px; --card-h: 69px; }
+.hand.many .card { --card-w: 52px; --card-h: 76px; }
 
 /* Beitritts-Anfragen / Wartestatus */
 .join-requests {
@@ -771,7 +773,8 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
   .melds-table .card.small .c-center { font-size: 22px; }
   .meld-block { padding: 7px 12px; }
   /* static: damit die absolute Button-Leiste sich am Tisch (.game-wrap) ausrichtet */
-  .game-bottom { padding: 8px 28px 78px; position: static; }
+  .game-bottom { padding: 8px 28px 78px; position: static; display: block; max-height: none; }
+  .hand-scroll { overflow: visible; flex: none; }
   .hand { gap: 10px; padding-top: 10px; }
   .hand-header { margin-bottom: 4px; }
   .controls .btn { flex: 0 1 190px; font-size: 15px; padding: 11px 14px; min-height: 44px; }
