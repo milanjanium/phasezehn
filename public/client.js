@@ -359,33 +359,29 @@ function cardEl(card, small) {
     classes.push('joker', card.range === 'lo' ? 'jlo' : 'jhi');
     d.className = classes.join(' ');
     d.style.background = jokerBg(card.colors);
+    // Joker: nur die Farben (Hintergrund) + die Reichweite-Zahl anzeigen
     const r = card.range === 'lo' ? '1–6' : '7–12';
-    if (small) {
-      d.innerHTML = `<span class="j-pill">${r}</span>`;
-    } else {
-      d.innerHTML =
-        `<span class="j-label">JOKER</span>` +
-        `<span class="j-pill">${r}</span>` +
-        `<span class="j-note">${(card.colors || []).length === 4 ? 'alle Farben' : 'nur diese Farben'}</span>`;
-    }
+    d.innerHTML = `<span class="j-pill">${r}</span>`;
     return d;
   }
 
-  let center, idx, cap = '', svg = null;
-  if (card.value === 'skip') { classes.push('act', 'skip'); center = '⊘'; idx = '⊘'; cap = 'AUSSETZEN'; }
-  else if (card.value === 'draw2') { classes.push('act', 'draw2'); svg = CARDS2_SVG; idx = '2'; cap = 'NIMM ZWEI'; }
-  else if (card.value === 'keepall') { classes.push('act', 'keepall'); svg = THUMB_SVG; idx = ''; cap = 'BEHALTEN'; }
-  else if (card.value === 'give5') { classes.push('act', 'give5'); svg = HAND_SVG; idx = ''; cap = 'GIVE FIVE'; }
+  let center, idx, cap = '', svg = null, isAct = false;
+  if (card.value === 'skip') { classes.push('act', 'skip'); center = '⊘'; cap = 'AUSSETZEN'; isAct = true; }
+  else if (card.value === 'draw2') { classes.push('act', 'draw2'); svg = CARDS2_SVG; cap = 'NIMM ZWEI'; isAct = true; }
+  else if (card.value === 'keepall') { classes.push('act', 'keepall'); svg = THUMB_SVG; cap = 'BEHALTEN'; isAct = true; }
+  else if (card.value === 'give5') { classes.push('act', 'give5'); svg = HAND_SVG; cap = 'GIVE FIVE'; isAct = true; }
   else { classes.push(card.color); center = card.value; idx = card.value; }
   d.className = classes.join(' ');
   const centerEl = svg ? `<span class="c-svg">${svg}</span>` : `<span class="c-center">${center}</span>`;
   if (small) {
     d.innerHTML = centerEl;
+  } else if (isAct) {
+    // Aktionskarten: nur mittig (Icon/Symbol) + Beschriftung, keine Ecken-Symbole
+    d.innerHTML = centerEl + (cap ? `<span class="c-cap">${cap}</span>` : '');
   } else {
     d.innerHTML =
       `<span class="c-idx tl">${idx}</span>` +
       centerEl +
-      (cap ? `<span class="c-cap">${cap}</span>` : '') +
       `<span class="c-idx br">${idx}</span>`;
   }
   return d;
