@@ -336,8 +336,12 @@ function colorFor(name) {
 
 // ---------- Karten ----------
 const CARD_HEX = { red: '#d5474c', yellow: '#c79320', green: '#2ea25f', violet: '#7b57c6' };
-// Daumen-Symbol für „Behalten" (eigenes SVG, kein Emoji)
+// Aktionskarten-Symbole (eigene SVGs, keine Emojis)
 const THUMB_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M2 21h3V9H2v12zm20-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L13.17 1 6.59 7.59C6.22 7.95 6 8.45 6 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"/></svg>';
+// Offene Hand für „Give me Five"
+const HAND_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M23 5.5V20c0 2.21-1.79 4-4 4h-7.3c-1.08 0-2.1-.43-2.85-1.19L1 14.83c.43-.44 1.06-.7 1.72-.7.28 0 .55.05.8.15L8 16.05V4c0-.83.67-1.5 1.5-1.5S11 3.17 11 4v7h1V1.5C12 .67 12.67 0 13.5 0S15 .67 15 1.5V11h1V2.5c0-.83.67-1.5 1.5-1.5S19 1.67 19 2.5V11h1V5.5c0-.83.67-1.5 1.5-1.5S23 4.67 23 5.5z"/></svg>';
+// Zwei Karten für „Nimm zwei"
+const CARDS2_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9 3h9a2 2 0 0 1 2 2v11h-2V5H9V3z"/><rect x="4" y="7" width="12" height="14" rx="2"/></svg>';
 function jokerBg(cols) {
   const cs = (cols || []).map(c => CARD_HEX[c] || '#888');
   if (cs.length <= 1) return cs[0] || '#555';
@@ -369,9 +373,9 @@ function cardEl(card, small) {
 
   let center, idx, cap = '', svg = null;
   if (card.value === 'skip') { classes.push('act', 'skip'); center = '⊘'; idx = '⊘'; cap = 'AUSSETZEN'; }
-  else if (card.value === 'draw2') { classes.push('act', 'draw2'); center = '✌️'; idx = '2'; cap = 'NIMM ZWEI'; }
+  else if (card.value === 'draw2') { classes.push('act', 'draw2'); svg = CARDS2_SVG; idx = '2'; cap = 'NIMM ZWEI'; }
   else if (card.value === 'keepall') { classes.push('act', 'keepall'); svg = THUMB_SVG; idx = ''; cap = 'BEHALTEN'; }
-  else if (card.value === 'give5') { classes.push('act', 'give5'); center = '✋'; idx = ''; cap = 'GIVE FIVE'; }
+  else if (card.value === 'give5') { classes.push('act', 'give5'); svg = HAND_SVG; idx = ''; cap = 'GIVE FIVE'; }
   else { classes.push(card.color); center = card.value; idx = card.value; }
   d.className = classes.join(' ');
   const centerEl = svg ? `<span class="c-svg">${svg}</span>` : `<span class="c-center">${center}</span>`;
@@ -392,7 +396,7 @@ function isActionCard(card) { return ['skip', 'draw2', 'keepall', 'give5'].inclu
 // kleine Badges für Front-Aktionskarten / Aussetzen-Status
 function frontTags(p) {
   let s = '';
-  if (p.draw2) s += ' <span class="front-tag draw2">✌️ Nimm zwei</span>';
+  if (p.draw2) s += ` <span class="front-tag draw2"><span class="c-svg">${CARDS2_SVG}</span> Nimm zwei</span>`;
   if (p.keepAll) s += ` <span class="front-tag keepall"><span class="c-svg">${THUMB_SVG}</span> Behalten</span>`;
   if (p.willSkip) s += ' <span class="front-tag skip">⊘ setzt aus</span>';
   return s;
@@ -817,11 +821,11 @@ function renderGive5() {
   const g = state.give5;
   if (g.by === playerId) {
     if (g.phase === 'collecting') {
-      showOverlay('✋ Give me Five!', `Warte auf Karten der Mitspieler … (${g.collected}/${g.needed})`, (body) => {
+      showOverlay('Give me Five!', `Warte auf Karten der Mitspieler … (${g.collected}/${g.needed})`, (body) => {
         appendHandPeek(body, renderGive5);
       }, []);
     } else {
-      showOverlay('✋ Give me Five! – nimm eine Karte', 'Wähle eine der angebotenen Karten.', (body) => {
+      showOverlay('Give me Five! – nimm eine Karte', 'Wähle eine der angebotenen Karten.', (body) => {
         const wrap = document.createElement('div'); wrap.className = 'g5-offers';
         (g.offers || []).forEach(card => {
           const ce = cardEl(card); ce.onclick = () => socket.emit('pickOffered', { cardId: card.id });
@@ -832,7 +836,7 @@ function renderGive5() {
       }, []);
     }
   } else if (g.currentOffererId === playerId && g.phase === 'collecting') {
-    showOverlay('✋ Give me Five!', `${g.byName} fordert Karten – gib eine ab:`, (body) => {
+    showOverlay('Give me Five!', `${g.byName} fordert Karten – gib eine ab:`, (body) => {
       const wrap = document.createElement('div'); wrap.className = 'g5-offers';
       state.myHand.forEach(card => {
         const ce = cardEl(card); ce.onclick = () => socket.emit('offerCard', { cardId: card.id });
@@ -841,7 +845,7 @@ function renderGive5() {
       body.appendChild(wrap);
     }, []);
   } else {
-    showOverlay('✋ Give me Five!', `${g.byName} spielt „Give me Five!". Bitte warten … (${g.collected}/${g.needed})`, null, []);
+    showOverlay('Give me Five!', `${g.byName} spielt „Give me Five!". Bitte warten … (${g.collected}/${g.needed})`, null, []);
   }
 }
 
