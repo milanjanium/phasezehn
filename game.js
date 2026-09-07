@@ -31,7 +31,7 @@ function makeCard(props) { return Object.assign({ id: 'c' + (cardCounter++) }, p
 // Deck (128 Karten):
 //  - 96 Zahlenkarten: 1..12 in 4 Farben, je 2x
 //  - 14 Joker: je 7x Reichweite "lo" (1-6) und "hi" (7-12)
-//  - 18 Aktionskarten: 6x Aussetzen, 4x Nimm zwei, 4x Alles meins, 4x Give me Five
+//  - 18 Aktionskarten: 6x Aussetzen, 4x Nimm zwei, 4x Behalten, 4x Give me Five
 function buildDeck() {
   const deck = [];
   for (const color of COLORS) {

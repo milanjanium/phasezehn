@@ -331,11 +331,13 @@ function colorFor(name) {
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
   const hue = h % 360;
-  return `linear-gradient(135deg, hsl(${hue} 65% 55%), hsl(${(hue + 45) % 360} 65% 42%))`;
+  return `hsl(${hue} 48% 46%)`; // solide Avatar-Farbe (kein Verlauf)
 }
 
 // ---------- Karten ----------
-const CARD_HEX = { red: '#e5484d', yellow: '#e0a400', green: '#2fbf6b', violet: '#9b51e0' };
+const CARD_HEX = { red: '#d5474c', yellow: '#c79320', green: '#2ea25f', violet: '#7b57c6' };
+// Daumen-Symbol für „Behalten" (eigenes SVG, kein Emoji)
+const THUMB_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M2 21h3V9H2v12zm20-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L13.17 1 6.59 7.59C6.22 7.95 6 8.45 6 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"/></svg>';
 function jokerBg(cols) {
   const cs = (cols || []).map(c => CARD_HEX[c] || '#888');
   if (cs.length <= 1) return cs[0] || '#555';
@@ -365,22 +367,22 @@ function cardEl(card, small) {
     return d;
   }
 
-  let center, idx, cap = '';
+  let center, idx, cap = '', svg = null;
   if (card.value === 'skip') { classes.push('act', 'skip'); center = '⊘'; idx = '⊘'; cap = 'AUSSETZEN'; }
   else if (card.value === 'draw2') { classes.push('act', 'draw2'); center = '✌️'; idx = '2'; cap = 'NIMM ZWEI'; }
-  else if (card.value === 'keepall') { classes.push('act', 'keepall'); center = '👍'; idx = '👍'; cap = 'ALLES MEINS'; }
+  else if (card.value === 'keepall') { classes.push('act', 'keepall'); svg = THUMB_SVG; idx = ''; cap = 'BEHALTEN'; }
   else if (card.value === 'give5') { classes.push('act', 'give5'); center = '✋'; idx = ''; cap = 'GIVE FIVE'; }
   else { classes.push(card.color); center = card.value; idx = card.value; }
   d.className = classes.join(' ');
+  const centerEl = svg ? `<span class="c-svg">${svg}</span>` : `<span class="c-center">${center}</span>`;
   if (small) {
-    d.innerHTML = `<span class="c-center">${center}</span>`;
+    d.innerHTML = centerEl;
   } else {
     d.innerHTML =
       `<span class="c-idx tl">${idx}</span>` +
-      `<span class="c-center">${center}</span>` +
+      centerEl +
       (cap ? `<span class="c-cap">${cap}</span>` : '') +
-      `<span class="c-idx br">${idx}</span>` +
-      `<span class="c-gloss"></span>`;
+      `<span class="c-idx br">${idx}</span>`;
   }
   return d;
 }
@@ -391,7 +393,7 @@ function isActionCard(card) { return ['skip', 'draw2', 'keepall', 'give5'].inclu
 function frontTags(p) {
   let s = '';
   if (p.draw2) s += ' <span class="front-tag draw2">✌️ Nimm zwei</span>';
-  if (p.keepAll) s += ' <span class="front-tag keepall">👍 Alles meins</span>';
+  if (p.keepAll) s += ` <span class="front-tag keepall"><span class="c-svg">${THUMB_SVG}</span> Behalten</span>`;
   if (p.willSkip) s += ' <span class="front-tag skip">⊘ setzt aus</span>';
   return s;
 }
@@ -886,7 +888,7 @@ function renderRoundOver() {
 
   // "Alles meins!": eigene Entscheidung mit sichtbaren Handkarten
   if (state.myKeepAllPending) {
-    showOverlay('👍 Alles meins! – Karten behalten?', '', (body) => {
+    showOverlay('Behalten – Karten behalten?', '', (body) => {
       const info = document.createElement('p'); info.className = 'hint';
       info.textContent = 'Behalte deine Handkarten für die nächste Runde (du bekommst dafür trotzdem die Minuspunkte) oder gib sie ab und erhalte eine frische Hand.';
       body.appendChild(info);

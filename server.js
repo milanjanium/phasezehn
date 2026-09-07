@@ -483,7 +483,7 @@ io.on('connection', (socket) => {
     const room = joinedRoom;
     if (!room || !room.roundOver || room.gameOver) return;
     const me = room.players.find(p => p.id === selfId);
-    if (me && keepAllPending(me)) return fail('Bitte zuerst über „Alles meins!" entscheiden.');
+    if (me && keepAllPending(me)) return fail('Bitte zuerst über „Behalten" entscheiden.');
     room.ready = room.ready || new Set();
     room.ready.add(selfId);
     const allReady = room.players.filter(p => p.connected).every(p => room.ready.has(p.id));
@@ -732,7 +732,7 @@ io.on('connection', (socket) => {
     if (!G.isAction(card)) return fail('Das ist keine Aktionskarte.');
     if (me.hand.length === 1 && round1BlocksOut(room)) return fail('In der ersten Runde darf noch niemand rausgehen – erst wenn alle einmal dran waren.');
 
-    const label = { skip: 'Aussetzen', draw2: 'Nimm zwei', keepall: 'Alles meins', give5: 'Give me Five' }[card.value] || 'Aktion';
+    const label = { skip: 'Aussetzen', draw2: 'Nimm zwei', keepall: 'Behalten', give5: 'Give me Five' }[card.value] || 'Aktion';
     me.hand.splice(idx, 1);
     me.hasDrawn = false;
     if (me.hand.length === 0) { endRound(room, me); broadcast(room); return; }
@@ -780,7 +780,7 @@ io.on('connection', (socket) => {
       me.hasDrawn = false; advanceTurn(room); broadcast(room);
     } else if (card.value === 'keepall') {
       me.keepAll = true; // am Rundenende Handkarten behalten
-      room.lastAction = `${me.name} spielt „Alles meins!".`;
+      room.lastAction = `${me.name} spielt „Behalten".`;
       me.hasDrawn = false; advanceTurn(room); broadcast(room);
     } else if (card.value === 'give5') {
       startGive5(room, me);
