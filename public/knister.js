@@ -6,6 +6,26 @@
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+  // Punkte einer 5er-Linie (gleiche Logik wie Server) – für die Rand-Punktefelder
+  function lineScore(cells) {
+    if (cells.some((c) => c == null)) return 0;
+    const counts = {}; cells.forEach((n) => (counts[n] = (counts[n] || 0) + 1));
+    const sig = Object.values(counts).sort((a, b) => b - a).join(',');
+    if (sig === '5') return 10;
+    if (sig === '4,1') return 6;
+    if (sig === '3,2') return 8;
+    if (sig === '3,1,1') return 3;
+    if (sig === '2,2,1') return 3;
+    if (sig === '2,1,1,1') return 1;
+    if (sig === '1,1,1,1,1') {
+      const s = [...cells].sort((a, b) => a - b); let ok = true;
+      for (let i = 1; i < 5; i++) if (s[i] !== s[i - 1] + 1) ok = false;
+      if (ok) return cells.includes(7) ? 8 : 12;
+    }
+    return 0;
+  }
+  const lineFull = (cells) => cells.every((c) => c != null);
+
   // Geräte-ID/Name mit Phase 10 teilen (gleiches Gerät)
   let pid = localStorage.getItem('p10-id');
   if (!pid) { pid = 'p' + Math.random().toString(36).slice(2, 11); localStorage.setItem('p10-id', pid); }
@@ -102,15 +122,39 @@
       ? 'Alle Felder voll – Auswertung.'
       : (s.myPlaced ? 'Eingetragen – warte auf die Mitspieler …' : `Tippe ein freies Feld für die ${s.current}.`);
 
+    // 6x6-Raster: 5x5 Zahlenfelder + 11 Punktefelder am Rand (5 Zeilen rechts,
+    // 5 Spalten unten, 1 Diagonalen-Feld in der Ecke). Diagonalen zählen doppelt.
     const grid = $('k-grid'); grid.innerHTML = '';
     const g = s.myGrid || Array(25).fill(null);
-    g.forEach((v, i) => {
-      const cell = document.createElement('button');
-      cell.className = 'k-cell' + (v != null ? ' filled' : '') + (canPlace && v == null ? ' open' : '');
-      cell.textContent = v != null ? v : '';
-      if (canPlace && v == null) cell.onclick = () => socket.emit('k:place', { cell: i });
-      grid.appendChild(cell);
-    });
+    const at = (r, c) => g[r * 5 + c];
+    const rowC = (r) => [0, 1, 2, 3, 4].map((c) => at(r, c));
+    const colC = (c) => [0, 1, 2, 3, 4].map((r) => at(r, c));
+    const md = [0, 1, 2, 3, 4].map((i) => at(i, i));
+    const ad = [0, 1, 2, 3, 4].map((i) => at(i, 4 - i));
+    for (let r = 0; r < 6; r++) {
+      for (let c = 0; c < 6; c++) {
+        if (r < 5 && c < 5) {
+          const i = r * 5 + c, v = g[i], isDiag = (r === c) || (r === 4 - c);
+          const cell = document.createElement('button');
+          cell.className = 'k-cell' + (v != null ? ' filled' : '') + (canPlace && v == null ? ' open' : '') + (isDiag ? ' diag' : '');
+          cell.textContent = v != null ? v : '';
+          if (canPlace && v == null) cell.onclick = () => socket.emit('k:place', { cell: i });
+          grid.appendChild(cell);
+        } else if (r < 5 && c === 5) {
+          const b = document.createElement('div'); b.className = 'k-score-box';
+          b.textContent = lineFull(rowC(r)) ? String(lineScore(rowC(r))) : '';
+          grid.appendChild(b);
+        } else if (r === 5 && c < 5) {
+          const b = document.createElement('div'); b.className = 'k-score-box';
+          b.textContent = lineFull(colC(c)) ? String(lineScore(colC(c))) : '';
+          grid.appendChild(b);
+        } else {
+          const b = document.createElement('div'); b.className = 'k-score-box diag';
+          b.textContent = (lineFull(md) && lineFull(ad)) ? String(lineScore(md) * 2 + lineScore(ad) * 2) : '';
+          grid.appendChild(b);
+        }
+      }
+    }
 
     $('k-myscore').textContent = `Deine Punkte (fertige Reihen): ${s.myScore}`;
 
