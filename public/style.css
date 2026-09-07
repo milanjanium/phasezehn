@@ -380,8 +380,9 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
   display: flex; gap: 3px; padding: 5px; border-radius: 9px;
   background: rgba(255,255,255,.04); transition: box-shadow .15s, transform .1s;
 }
-.meld-group.hittable { cursor: pointer; box-shadow: 0 0 0 2px var(--accent); }
-.meld-group.hittable:hover { transform: translateY(-2px); box-shadow: 0 0 0 2px var(--accent), 0 6px 16px rgba(47,129,247,.4); }
+.meld-group.hittable { cursor: pointer; box-shadow: 0 0 0 2px var(--accent); animation: hitPulse 1.6s ease-in-out infinite; }
+.meld-group.hittable:hover { transform: translateY(-2px); box-shadow: 0 0 0 2px var(--accent), 0 6px 16px rgba(47,129,247,.4); animation: none; }
+@keyframes hitPulse { 0%,100% { box-shadow: 0 0 0 2px var(--accent); } 50% { box-shadow: 0 0 0 3px rgba(47,129,247,.45); } }
 .melds-table .card.small { width: 40px; height: 58px; border-radius: 7px; }
 .melds-table .card.small .c-center { font-size: 20px; }
 

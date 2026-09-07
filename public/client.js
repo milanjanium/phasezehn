@@ -642,7 +642,8 @@ function onCardTap(card) {
   // per Button abgelegt werden. So kann man direkt an Auslagen anlegen.
   if (state.myLaidThisRound) {
     if (selected.has(card.id)) selected.delete(card.id); else selected.add(card.id);
-    renderHand(); renderControls();
+    // Auslagen mit-neu-rendern, damit sie sofort anklickbar bleiben (Anlegen im selben Zug)
+    renderHand(); renderControls(); renderMeldsTable();
     return;
   }
   // Vor dem Auslegen: Doppeltipp = direkt ablegen/spielen (flüssig); Einzeltipp = auswählen
