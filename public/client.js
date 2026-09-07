@@ -215,18 +215,11 @@ $('settings-close').onclick = () => $('settings-modal').classList.add('hidden');
 function syncSettingsModal() {
   const host = isRoomHost();
   const s = (state && state.settings) || {};
-  const cb = $('set-lay-first');
-  cb.checked = !(s.layFirstTurn === false);
+  const cb = $('set-out-first');
+  cb.checked = !(s.outFirstRound === false);
   cb.disabled = !host;
-  const cb2 = $('set-out-first');
-  cb2.checked = !(s.outFirstRound === false);
-  cb2.disabled = !host;
   $('settings-readonly').classList.toggle('hidden', host);
 }
-$('set-lay-first').onchange = () => {
-  if (!isRoomHost()) return;
-  socket.emit('updateSettings', { settings: { layFirstTurn: $('set-lay-first').checked } });
-};
 $('set-out-first').onchange = () => {
   if (!isRoomHost()) return;
   socket.emit('updateSettings', { settings: { outFirstRound: $('set-out-first').checked } });
@@ -459,12 +452,8 @@ function renderLobby() {
     }
     ul.appendChild(li);
   }
-  const s = state.settings || {};
-  const layFirst = !(s.layFirstTurn === false);
-  const outFirst = !(s.outFirstRound === false);
-  $('lobby-rules').innerHTML =
-    `🃏 Auslegen im ersten Zug: ${layFirst ? 'erlaubt' : 'gesperrt'}<br>` +
-    `🚪 Rauskommen in Runde 1: ${outFirst ? 'erlaubt' : 'gesperrt'}`;
+  const outFirst = !(state.settings && state.settings.outFirstRound === false);
+  $('lobby-rules').textContent = `🚪 Rauskommen in Runde 1: ${outFirst ? 'erlaubt' : 'gesperrt'}`;
   const isHost = state.hostId === playerId;
   $('btn-settings').classList.toggle('hidden', !isHost);
   // Offenes Einstellungs-Modal live nachziehen (z.B. bei Host-Wechsel/Reconnect)

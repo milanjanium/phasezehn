@@ -304,10 +304,28 @@ function advanceTurn(room) {
   snapshotTurn(room); // Zustand am Zugbeginn merken (für Admin-Rücksetzung)
 }
 
+// Karten einer Auslage in korrekte Reihenfolge bringen:
+// Folgen numerisch (Joker an Lückenposition), Sets/Farbgruppen nach Zahl.
+function meldVal(c) {
+  if (typeof c.value === 'number') return c.value;
+  if (c.value === 'joker') return c.range === 'lo' ? 6.5 : 12.5;
+  return 999;
+}
+function orderMeld(type, cards) {
+  if (type === 'run' || type === 'colorrun') {
+    const arr = G.runArrangements(cards);
+    return arr.length ? arr[0].seq.slice() : cards.slice();
+  }
+  return [...cards].sort((a, b) => meldVal(a) - meldVal(b));
+}
+
 // Anlegen abschließen: Reihenfolge übernehmen, Karten aus der Hand nehmen,
 // ggf. Runde beenden (Rausgehen per Anlegen der letzten Karte).
 function finishHit(room, me, target, group, cards, orderedCards) {
-  group.cards = orderedCards.slice();
+  // Folgen behalten die gewählte Anordnung; Sets/Farbgruppen nach Zahl sortieren.
+  group.cards = (group.type === 'run' || group.type === 'colorrun')
+    ? orderedCards.slice()
+    : orderMeld(group.type, orderedCards);
   const usedIds = new Set(cards.map(c => c.id));
   me.hand = me.hand.filter(c => !usedIds.has(c.id));
   if (me.hand.length === 0) {
@@ -495,8 +513,7 @@ io.on('connection', (socket) => {
       deck: [], discard: [], turnIndex: 0, dealerIndex: 0,
       skipTargets: new Set(), give5: null, ready: new Set(), spectators: [],
       roundOver: false, gameOver: false, winners: null,
-      // Standard: auslegen im ersten Zug erlaubt; Rauskommen in der ersten Runde erlaubt
-      settings: { layFirstTurn: true, outFirstRound: true },
+      settings: { outFirstRound: true }, // Standard: Rauskommen in der ersten Runde erlaubt
     };
     const p = makePlayer(playerId, name);
     p.socketId = socket.id;
@@ -515,8 +532,6 @@ io.on('connection', (socket) => {
     if (room.hostId !== selfId) return fail('Nur der Host kann die Einstellungen ändern.');
     if (room.started) return fail('Einstellungen sind nach Spielstart gesperrt.');
     if (!room.settings) room.settings = {};
-    if (settings && typeof settings.layFirstTurn === 'boolean')
-      room.settings.layFirstTurn = settings.layFirstTurn;
     if (settings && typeof settings.outFirstRound === 'boolean')
       room.settings.outFirstRound = settings.outFirstRound;
     broadcast(room);
@@ -728,9 +743,6 @@ io.on('connection', (socket) => {
     if (me.pendingDraw) return fail('Wähle zuerst eine der beiden Karten.');
     if (!me.hasDrawn) return fail('Erst ziehen, dann auslegen.');
     if (me.laidThisRound) return fail('Du hast diese Runde schon ausgelegt.');
-    // Optionale Regel: im eigenen ersten Zug einer Runde darf nicht ausgelegt werden.
-    if (room.settings && room.settings.layFirstTurn === false && !(room.tookTurn && room.tookTurn.has(me.id)))
-      return fail('Auslegen im ersten Zug ist in diesem Raum deaktiviert – auslegen erst ab deinem zweiten Zug dieser Runde.');
     if (!Array.isArray(groups)) return fail('Ungültige Auswahl.');
 
     // IDs -> Karten aus der Hand
@@ -747,15 +759,22 @@ io.on('connection', (socket) => {
       cardGroups.push(cards);
     }
     if (!G.validatePhase(me.phase, cardGroups)) return fail('Auslage erfüllt die Phase nicht.');
+    // Gleiche Zahl darf nicht mehrfach über Zahlengruppen verteilt werden
+    // (z.B. Phase 1 nicht mit zwei 6er-Zwillingen).
+    const setNums = [];
+    G.PHASES[me.phase].groups.forEach((req, i) => {
+      if (req.type === 'set') { const n = cardGroups[i].find(G.isNumber); if (n) setNums.push(n.value); }
+    });
+    if (new Set(setNums).size !== setNums.length)
+      return fail('Jede Zahlengruppe muss eine andere Zahl haben.');
 
-    // Übernehmen
+    // Übernehmen – Karten immer in korrekter Reihenfolge (Folgen numerisch, Joker
+    // an ihrer Lückenposition; Sets/Farbgruppen nach Zahl).
     const phaseDef = G.PHASES[me.phase];
-    me.laidGroups = cardGroups.map((cards, i) => ({
-      type: phaseDef.groups[i].type,
-      count: phaseDef.groups[i].count,
-      cards,
-      owner: me.id,
-    }));
+    me.laidGroups = cardGroups.map((cards, i) => {
+      const type = phaseDef.groups[i].type;
+      return { type, count: phaseDef.groups[i].count, cards: orderMeld(type, cards), owner: me.id };
+    });
     me.hand = me.hand.filter(c => !usedIds.has(c.id));
     me.laidThisRound = true;
     me.completedPhase = true;
