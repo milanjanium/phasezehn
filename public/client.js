@@ -454,8 +454,6 @@ function renderLobby() {
     }
     ul.appendChild(li);
   }
-  const outFirst = !(state.settings && state.settings.outFirstRound === false);
-  $('lobby-rules').textContent = `🚪 get out round 1: ${outFirst ? 'an' : 'aus'}`;
   const isHost = state.hostId === playerId;
   $('btn-settings').classList.toggle('hidden', !isHost);
   // Offenes Einstellungs-Modal live nachziehen (z.B. bei Host-Wechsel/Reconnect)
