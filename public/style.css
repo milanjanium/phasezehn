@@ -598,6 +598,7 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
   padding: calc(var(--card-w) * .04) calc(var(--card-w) * .14);
   border-radius: 999px; font-size: calc(var(--card-w) * .28);
   box-shadow: 0 2px 8px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,255,255,.25);
+  white-space: nowrap; /* Zahlenbereich (z.B. 7–12) immer in einer Reihe */
 }
 .j-note {
   position: absolute; bottom: 7%; left: 0; right: 0; text-align: center; z-index: 1;
@@ -945,3 +946,8 @@ input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba
 @media (min-width: 900px) and (orientation: landscape) {
   .action-log { font-size: 18px; }
 }
+
+/* Knister – Links unter dem Feld + Admin-Spielerauswahl */
+.k-links { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.k-pick-list { display: flex; flex-direction: column; gap: 8px; margin: 10px 0 4px; }
+.k-pick-list .k-pick { width: 100%; margin: 0; }

@@ -60,8 +60,19 @@ function registerKnister(io) {
       id: p.id, name: p.name, connected: p.connected,
       filled: p.grid.filter(x => x != null).length,
       placedThisRound: room.roundPlaced.has(p.id),
+      canUndo: p.lastPlaced != null, // hat schon etwas gesetzt -> rücksetzbar
       score: scoreGrid(p.grid), // Zwischenstand (fertige Reihen zählen) – immer sichtbar
       grid: room.gameOver ? p.grid : null, // Grids der anderen erst am Ende offen
+    };
+  }
+  function undoVotePublic(room, playerId) {
+    const v = room.undoVote;
+    if (!v) return null;
+    const pending = room.players.filter(p => !v.approvals.includes(p.id)).map(p => p.name);
+    return {
+      by: v.by, targetId: v.targetId, targetName: v.targetName,
+      approved: v.approvals.length, needed: room.players.length, pending,
+      iApproved: v.approvals.includes(playerId),
     };
   }
   function stateFor(room, playerId) {
@@ -73,7 +84,9 @@ function registerKnister(io) {
       players: room.players.map(p => playerPublic(room, p)),
       myGrid: me ? p_grid(me) : null,
       myPlaced: me ? room.roundPlaced.has(me.id) : false,
+      myMustReplace: me ? (me.mustReplace != null ? me.mustReplace : null) : null,
       myScore: me ? scoreGrid(me.grid) : 0,
+      undoVote: undoVotePublic(room, playerId),
       winners: room.gameOver ? winnersOf(room) : null,
     };
   }
@@ -94,7 +107,27 @@ function registerKnister(io) {
     if (room.players.length && room.players.every(p => room.roundPlaced.has(p.id))) nextRound(room);
   }
   function newPlayer(id, name, socketId) {
-    return { id, name, socketId, connected: true, grid: Array(25).fill(null), lastPlaced: null };
+    return { id, name, socketId, connected: true, grid: Array(25).fill(null), lastPlaced: null, mustReplace: null };
+  }
+  function tryFinishUndo(room) {
+    const v = room.undoVote;
+    if (!v) return;
+    if (!room.players.length || !room.players.every(p => v.approvals.includes(p.id))) return;
+    const P = room.players.find(p => p.id === v.targetId);
+    room.undoVote = null;
+    if (!P || P.lastPlaced == null) return;
+    const cell = P.lastPlaced;
+    const oldNum = P.grid[cell];
+    P.grid[cell] = null;
+    P.lastPlaced = null;
+    if (room.roundPlaced.has(P.id)) {
+      // Eintragung der aktuellen Runde -> raus aus "platziert", Spieler setzt die
+      // aktuelle Zahl neu (Zahl bleibt gleich).
+      room.roundPlaced.delete(P.id);
+    } else {
+      // ältere Eintragung -> Spieler setzt genau diese Zahl neu (unabhängig)
+      P.mustReplace = oldNum;
+    }
   }
 
   io.on('connection', (socket) => {
@@ -148,11 +181,20 @@ function registerKnister(io) {
     socket.on('k:place', ({ cell } = {}) => {
       const room = joined;
       if (!room || !room.started || room.gameOver) return;
+      if (room.undoVote) return fail('Bitte zuerst über die Zug-Rücksetzung abstimmen.');
       const me = room.players.find(p => p.id === selfId);
       if (!me) return;
-      if (room.roundPlaced.has(me.id)) return fail('Schon eingetragen – warte auf die Mitspieler.');
       if (typeof cell !== 'number' || cell < 0 || cell > 24) return;
       if (me.grid[cell] != null) return fail('Dieses Feld ist schon belegt.');
+      // Vom Admin zurückgesetzte Zahl neu setzen (unabhängig von der Runde, Zahl bleibt gleich)
+      if (me.mustReplace != null) {
+        me.grid[cell] = me.mustReplace;
+        me.lastPlaced = cell;
+        me.mustReplace = null;
+        broadcast(room);
+        return;
+      }
+      if (room.roundPlaced.has(me.id)) return fail('Schon eingetragen – warte auf die Mitspieler.');
       me.grid[cell] = room.current;
       me.lastPlaced = cell;
       room.roundPlaced.add(me.id);
@@ -165,12 +207,44 @@ function registerKnister(io) {
     socket.on('k:undo', () => {
       const room = joined;
       if (!room || !room.started || room.gameOver) return;
+      if (room.undoVote) return;
       const me = room.players.find(p => p.id === selfId);
       if (!me) return;
       if (!room.roundPlaced.has(me.id) || me.lastPlaced == null) return fail('Nichts zum Rückgängig machen.');
       me.grid[me.lastPlaced] = null;
       me.lastPlaced = null;
       room.roundPlaced.delete(me.id);
+      broadcast(room);
+    });
+
+    // ---- Admin: Zug eines Spielers zurücksetzen (alle müssen zustimmen) ----
+    socket.on('k:requestUndo', ({ targetId } = {}) => {
+      const room = joined;
+      if (!room || !room.started || room.gameOver) return;
+      if (room.hostId !== selfId) return fail('Nur der Admin kann das.');
+      if (room.undoVote) return fail('Es läuft bereits eine Abstimmung.');
+      const target = room.players.find(p => p.id === targetId);
+      if (!target) return fail('Spieler nicht gefunden.');
+      if (target.lastPlaced == null) return fail('Dieser Spieler hat noch nichts gesetzt.');
+      room.undoVote = { by: selfId, targetId: target.id, targetName: target.name, approvals: [selfId] };
+      tryFinishUndo(room); // falls Admin allein
+      broadcast(room);
+    });
+    socket.on('k:undoVoteResponse', ({ approve } = {}) => {
+      const room = joined;
+      const v = room && room.undoVote;
+      if (!v) return;
+      if (!room.players.some(p => p.id === selfId)) return;
+      if (!approve) { room.undoVote = null; broadcast(room); return; }
+      if (!v.approvals.includes(selfId)) v.approvals.push(selfId);
+      tryFinishUndo(room);
+      broadcast(room);
+    });
+    socket.on('k:cancelUndo', () => {
+      const room = joined;
+      if (!room || !room.undoVote) return;
+      if (room.hostId !== selfId) return;
+      room.undoVote = null;
       broadcast(room);
     });
 
@@ -182,6 +256,11 @@ function registerKnister(io) {
       if (i >= 0) room.players.splice(i, 1);
       room.roundPlaced.delete(selfId);
       if (room.hostId === selfId) { const n = room.players.find(p => p.connected) || room.players[0]; if (n) room.hostId = n.id; }
+      // Laufende Abstimmung ggf. abbrechen/abschließen
+      if (room.undoVote) {
+        if (room.undoVote.targetId === selfId || room.undoVote.by === selfId) room.undoVote = null;
+        else tryFinishUndo(room);
+      }
       if (!room.players.length) rooms.delete(room.code);
       else { maybeAdvance(room); broadcast(room); }
       joined = null;

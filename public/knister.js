@@ -118,6 +118,26 @@
     return h;
   }
 
+  // ---------- Admin: Spieler zum Zurücksetzen auswählen ----------
+  $('k-btn-admin').onclick = () => {
+    const s = kState; if (!s) return;
+    const candidates = s.players.filter((p) => p.canUndo);
+    const box = $('k-info');
+    let html = '<div class="overlay-box k-info-box"><h2>Zug zurücksetzen</h2>';
+    if (!candidates.length) {
+      html += '<p class="hint" style="text-align:center">Noch kein Zug zum Zurücksetzen.</p>';
+    } else {
+      html += '<p class="hint" style="text-align:center">Von welchem Spieler soll der letzte Zug zurückgesetzt werden?</p><div class="k-pick-list">';
+      candidates.forEach((p) => { html += `<button class="btn k-pick" data-id="${p.id}">${esc(p.name)}</button>`; });
+      html += '</div>';
+    }
+    html += '<div class="overlay-actions"><button class="btn subtle" id="k-info-close">Abbrechen</button></div></div>';
+    box.innerHTML = html;
+    box.querySelectorAll('.k-pick').forEach((b) => (b.onclick = () => { socket.emit('k:requestUndo', { targetId: b.dataset.id }); box.classList.add('hidden'); }));
+    $('k-info-close').onclick = () => box.classList.add('hidden');
+    box.classList.remove('hidden');
+  };
+
   // ---------- Socket ----------
   socket.on('k:error', (m) => toastK(m));
   socket.on('k:state', (s) => { kState = s; render(); });
@@ -137,7 +157,28 @@
       lastRolledRound = s.round;
       animateRoll(s.current);
     }
+    if (s.undoVote) renderUndoVote(); else $('k-vote').classList.add('hidden');
     if (s.gameOver) renderResult(); else $('k-result').classList.add('hidden');
+  }
+
+  // Admin-Abstimmung: letzten Zug eines Spielers zurücksetzen
+  function renderUndoVote() {
+    const v = kState.undoVote; const box = $('k-vote');
+    box.classList.remove('hidden');
+    const waiting = (v.by === pid) || v.iApproved;
+    if (waiting) {
+      const pend = (v.pending && v.pending.length) ? 'Warte noch auf: ' + v.pending.map(esc).join(', ') : 'Warte auf Bestätigung …';
+      box.innerHTML = '<div class="overlay-box"><h2>Zug zurücksetzen?</h2>' +
+        `<p>Letzten Zug von ${esc(v.targetName)} zurücksetzen. ${pend} (${v.approved}/${v.needed})</p>` +
+        '<div class="overlay-actions">' + (v.by === pid ? '<button class="btn subtle" id="k-vote-cancel">Abbrechen</button>' : '') + '</div></div>';
+      if (v.by === pid) $('k-vote-cancel').onclick = () => socket.emit('k:cancelUndo');
+    } else {
+      box.innerHTML = '<div class="overlay-box"><h2>Zug zurücksetzen?</h2>' +
+        `<p>Der Admin möchte den letzten Zug von <b>${esc(v.targetName)}</b> zurücksetzen. Bist du einverstanden?</p>` +
+        '<div class="overlay-actions"><button class="btn good" id="k-vote-yes">Einverstanden</button><button class="btn danger" id="k-vote-no">Ablehnen</button></div></div>';
+      $('k-vote-yes').onclick = () => socket.emit('k:undoVoteResponse', { approve: true });
+      $('k-vote-no').onclick = () => socket.emit('k:undoVoteResponse', { approve: false });
+    }
   }
 
   function animateRoll(num) {
@@ -166,14 +207,19 @@
 
   function renderGame() {
     const s = kState;
+    const mustReplace = s.myMustReplace;
     $('k-room-badge').textContent = 'Raum ' + s.code;
     $('k-round').textContent = Math.min(s.round, s.totalRounds);
-    $('k-current-num').textContent = s.current != null ? s.current : '–';
-    const canPlace = !s.gameOver && !s.myPlaced && s.current != null;
+    const showNum = mustReplace != null ? mustReplace : s.current;
+    $('k-current-num').textContent = showNum != null ? showNum : '–';
+    // Setzen erlaubt, wenn: Admin-Rücksetzung (mustReplace) ODER normale Runde (noch nicht gesetzt)
+    const canPlace = !s.gameOver && showNum != null && (mustReplace != null || !s.myPlaced);
     $('k-place-hint').textContent = s.gameOver
       ? 'Alle Felder voll – Auswertung.'
+      : mustReplace != null ? `Setze deine ${mustReplace} neu – tippe ein freies Feld.`
       : (s.myPlaced ? 'Eingetragen – warte auf die Mitspieler …' : `Tippe ein freies Feld für die ${s.current}.`);
-    $('k-btn-undo').classList.toggle('hidden', !(s.myPlaced && !s.gameOver));
+    $('k-btn-undo').classList.toggle('hidden', !(s.myPlaced && mustReplace == null && !s.gameOver));
+    $('k-btn-admin').classList.toggle('hidden', !(s.isHost && !s.gameOver));
 
     // 6x6-Raster: 5x5 Zahlenfelder + 11 Punktefelder am Rand (5 Zeilen rechts,
     // 5 Spalten unten, 1 Diagonalen-Feld in der Ecke). Diagonalen zählen doppelt.
