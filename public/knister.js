@@ -79,6 +79,7 @@
   const leaveToWorld = () => { socket.emit('k:leaveRoom'); kRoom = null; kState = null; kShow('screen-start'); };
   $('k-btn-leave-lobby').onclick = leaveToWorld;
   $('k-btn-leave').onclick = () => { if (confirm('Knister verlassen?')) leaveToWorld(); };
+  $('k-btn-undo').onclick = () => socket.emit('k:undo');
 
   // ---------- Info-Popup: Punktestand + Wertung ----------
   let infoTab = 'stand';
@@ -172,6 +173,7 @@
     $('k-place-hint').textContent = s.gameOver
       ? 'Alle Felder voll – Auswertung.'
       : (s.myPlaced ? 'Eingetragen – warte auf die Mitspieler …' : `Tippe ein freies Feld für die ${s.current}.`);
+    $('k-btn-undo').classList.toggle('hidden', !(s.myPlaced && !s.gameOver));
 
     // 6x6-Raster: 5x5 Zahlenfelder + 11 Punktefelder am Rand (5 Zeilen rechts,
     // 5 Spalten unten, 1 Diagonalen-Feld in der Ecke). Diagonalen zählen doppelt.

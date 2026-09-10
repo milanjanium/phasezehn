@@ -88,12 +88,13 @@ function registerKnister(io) {
     room.round += 1;
     room.current = roll();
   }
+  // Runde geht erst weiter, wenn ALLE Spieler eingetragen haben (auch abwesende) –
+  // so haben alle immer gleich viele Felder (X/25). Wer den Raum verlässt, wird entfernt.
   function maybeAdvance(room) {
-    const connected = room.players.filter(p => p.connected);
-    if (connected.length && connected.every(p => room.roundPlaced.has(p.id))) nextRound(room);
+    if (room.players.length && room.players.every(p => room.roundPlaced.has(p.id))) nextRound(room);
   }
   function newPlayer(id, name, socketId) {
-    return { id, name, socketId, connected: true, grid: Array(25).fill(null) };
+    return { id, name, socketId, connected: true, grid: Array(25).fill(null), lastPlaced: null };
   }
 
   io.on('connection', (socket) => {
@@ -153,19 +154,33 @@ function registerKnister(io) {
       if (typeof cell !== 'number' || cell < 0 || cell > 24) return;
       if (me.grid[cell] != null) return fail('Dieses Feld ist schon belegt.');
       me.grid[cell] = room.current;
+      me.lastPlaced = cell;
       room.roundPlaced.add(me.id);
       maybeAdvance(room);
+      broadcast(room);
+    });
+
+    // Eigene Eintragung dieser Runde rückgängig machen (nur solange die Runde
+    // noch nicht weitergegangen ist – d.h. noch nicht alle eingetragen haben).
+    socket.on('k:undo', () => {
+      const room = joined;
+      if (!room || !room.started || room.gameOver) return;
+      const me = room.players.find(p => p.id === selfId);
+      if (!me) return;
+      if (!room.roundPlaced.has(me.id) || me.lastPlaced == null) return fail('Nichts zum Rückgängig machen.');
+      me.grid[me.lastPlaced] = null;
+      me.lastPlaced = null;
+      room.roundPlaced.delete(me.id);
       broadcast(room);
     });
 
     socket.on('k:leaveRoom', () => {
       const room = joined;
       if (!room) return;
+      // Beim Verlassen wird der Spieler entfernt (blockiert die Runde nicht mehr)
       const i = room.players.findIndex(p => p.id === selfId);
-      if (i >= 0) {
-        if (room.started) { room.players[i].connected = false; room.players[i].socketId = null; }
-        else room.players.splice(i, 1);
-      }
+      if (i >= 0) room.players.splice(i, 1);
+      room.roundPlaced.delete(selfId);
       if (room.hostId === selfId) { const n = room.players.find(p => p.connected) || room.players[0]; if (n) room.hostId = n.id; }
       if (!room.players.length) rooms.delete(room.code);
       else { maybeAdvance(room); broadcast(room); }

@@ -103,19 +103,24 @@ function playerPublic(room, p) {
 }
 
 // Öffentliche Info zu einem laufenden "Give me Five!"
-function give5Public(room) {
+function give5Public(room, playerId) {
   const g = room.give5;
   if (!g) return null;
   const asker = room.players.find(p => p.id === g.by);
+  const nameOf = (id) => (room.players.find(p => p.id === id) || {}).name || '';
   return {
     by: g.by,
     byName: asker ? asker.name : '',
-    phase: g.phase,                 // 'collecting' | 'picking'
-    currentOffererId: g.currentId || null,
+    phase: g.phase,                 // 'collecting' | 'picking' | 'reveal'
     needed: g.needed,
-    collected: g.offers.length,
-    // die bereits angebotenen Karten (offen, jeder darf sie sehen)
-    offers: g.phase === 'picking' ? g.offers.map(o => o.card) : [],
+    collected: (g.offers || []).length,
+    myQuota: (g.quota && g.quota[playerId]) || 0,        // wie viele ICH abgeben muss
+    iSubmitted: (g.submitted || []).includes(playerId),
+    submittedCount: (g.submitted || []).length,
+    quotaCount: g.quota ? Object.keys(g.quota).length : 0,
+    // beim Auswählen: Angebote mit Namen (der Ausspieler sieht, von wem welche Karte ist)
+    offers: g.phase === 'picking' ? (g.offers || []).map(o => ({ card: o.card, from: nameOf(o.playerId) })) : [],
+    reveal: (g.phase === 'reveal' && g.reveal) ? g.reveal : null,
   };
 }
 
@@ -142,7 +147,7 @@ function stateFor(room, playerId) {
     myLaidThisRound: me ? me.laidThisRound : false,
     myPendingDraw: me ? me.pendingDraw : null,
     myKeepAllPending: !!(room.roundOver && me && keepAllPending(me)),
-    give5: give5Public(room),
+    give5: give5Public(room, playerId),
     undoVote: undoVotePublic(room, playerId),
     isHost: room.hostId === playerId,
     lastAction: room.lastAction || null,
@@ -260,7 +265,9 @@ function startRound(room) {
   room.lastFinisher = null;
   room.roundNo = (room.roundNo || 0) + 1; // 1 = erste Runde
   room.tookTurn = new Set();              // wer in dieser Runde schon dran war
-  room.turnHistory = [];                  // Zug-Snapshots (Admin-Rücksetzung), pro Runde
+  // Zug-Historie NICHT pro Runde zurücksetzen -> Admin kann das ganze Spiel über
+  // den letzten Zug zurücksetzen (Snapshots sind auf 30 begrenzt).
+  if (!room.turnHistory) room.turnHistory = [];
   room.undoVote = null;
 
   // Startspieler rotiert pro Runde
@@ -425,41 +432,27 @@ function tryFinishUndo(room) {
 }
 
 // ---- "Give me Five!" ----
+// Give me Five!: alle Mitspieler geben GLEICHZEITIG Karten ab. Jeder bekommt
+// eine Quote (1 oder 2 …), die zusammen 5 (bzw. weniger) ergibt.
 function startGive5(room, asker) {
-  const n = room.players.length;
-  const ai = room.players.findIndex(p => p.id === asker.id);
-  const order = [];
-  for (let k = 1; k < n; k++) order.push(room.players[(ai + k) % n].id); // ab linkem Nachbarn
-  const totalCards = room.players
-    .filter(p => p.id !== asker.id)
-    .reduce((s, p) => s + p.hand.length, 0);
-  room.give5 = {
-    by: asker.id, phase: 'collecting', order, step: 0,
-    offers: [], needed: Math.min(5, totalCards), currentId: null,
-  };
-  give5NextOfferer(room);
-}
-
-function give5NextOfferer(room) {
-  const g = room.give5;
-  if (!g) return;
-  if (g.offers.length >= g.needed) return give5ToPicking(room);
-  const L = g.order.length;
-  for (let tries = 0; tries < L; tries++) {
-    const id = g.order[g.step % L];
-    g.step++;
-    const pl = room.players.find(p => p.id === id);
-    if (pl && pl.hand.length > 0) { g.currentId = id; return; }
+  const others = room.players.filter(p => p.id !== asker.id && p.hand.length > 0);
+  const totalCards = others.reduce((s, p) => s + p.hand.length, 0);
+  const needed = Math.min(5, totalCards);
+  const quota = {};
+  others.forEach(p => { quota[p.id] = 0; });
+  // gleichmäßig reihum verteilen, begrenzt durch die Handgröße
+  let remaining = needed, guard = 0;
+  while (remaining > 0 && guard++ < 1000) {
+    let progressed = false;
+    for (const p of others) {
+      if (remaining <= 0) break;
+      if (quota[p.id] < p.hand.length) { quota[p.id]++; remaining--; progressed = true; }
+    }
+    if (!progressed) break;
   }
-  give5ToPicking(room); // niemand hat mehr Karten
-}
-const advanceGive5 = give5NextOfferer;
-
-function give5ToPicking(room) {
-  const g = room.give5;
-  if (g.offers.length === 0) return finishGive5NoPick(room);
-  g.phase = 'picking';
-  g.currentId = null;
+  Object.keys(quota).forEach(id => { if (quota[id] === 0) delete quota[id]; });
+  room.give5 = { by: asker.id, phase: 'collecting', quota, needed, offers: [], submitted: [], reveal: null };
+  if (Object.keys(quota).length === 0) finishGive5NoPick(room); // niemand kann geben
 }
 
 function finishGive5NoPick(room) {
@@ -973,7 +966,8 @@ io.on('connection', (socket) => {
       if (!target) { me.hand.splice(idx, 0, card); return fail('Wähle einen Spieler, der aussetzen soll.'); }
       room.skipTargets.add(target.id);
       room.lastAction = `${me.name} lässt ${target.name} aussetzen!`;
-      if (target.socketId) io.to(target.socketId).emit('skipNotice', { by: me.name });
+      // Dezenter Hinweis für ALLE (nicht nur den Betroffenen), leicht eingeblendet
+      io.to(room.code).emit('skipInfo', { by: me.name, targetId: target.id, targetName: target.name });
       me.hasDrawn = false; advanceTurn(room); broadcast(room);
     } else if (card.value === 'draw2') {
       me.draw2 = true; // ab jetzt 2 ziehen, 1 behalten
@@ -989,18 +983,26 @@ io.on('connection', (socket) => {
     }
   });
 
-  // ---- Give me Five!: Mitspieler bieten Karten an ----
-  socket.on('offerCard', ({ cardId }) => {
+  // ---- Give me Five!: jeder gibt gleichzeitig seine Quote ab ----
+  socket.on('submitOffer', ({ cardIds } = {}) => {
     const room = joinedRoom;
     const g = room && room.give5;
     if (!g || g.phase !== 'collecting') return;
-    if (g.currentId !== selfId) return fail('Du bist gerade nicht dran.');
+    const q = g.quota[selfId];
+    if (!q) return fail('Du musst diesmal nichts abgeben.');
+    if (g.submitted.includes(selfId)) return fail('Du hast schon abgegeben.');
     const me = room.players.find(p => p.id === selfId);
-    const idx = me.hand.findIndex(c => c.id === cardId);
-    if (idx === -1) return fail('Karte nicht auf der Hand.');
-    const card = me.hand.splice(idx, 1)[0];
-    g.offers.push({ playerId: me.id, card });
-    advanceGive5(room);
+    if (!Array.isArray(cardIds) || cardIds.length !== q) return fail(`Bitte genau ${q} Karte(n) auswählen.`);
+    const handById = new Map(me.hand.map(c => [c.id, c]));
+    const used = new Set(); const cards = [];
+    for (const id of cardIds) {
+      if (!handById.has(id) || used.has(id)) return fail('Ungültige Auswahl.');
+      used.add(id); cards.push(handById.get(id));
+    }
+    me.hand = me.hand.filter(c => !used.has(c.id));
+    cards.forEach(card => g.offers.push({ playerId: me.id, card }));
+    g.submitted.push(selfId);
+    if (Object.keys(g.quota).every(id => g.submitted.includes(id))) g.phase = 'picking';
     broadcast(room);
   });
 
@@ -1015,21 +1017,34 @@ io.on('connection', (socket) => {
     const asker = room.players.find(p => p.id === g.by);
     const chosen = g.offers[oi];
     asker.hand.push(chosen.card);
-    // Besitzer sieht, welche Karte ihm genommen wurde, und erhält Ersatz vom Nachziehstapel
     const owner = room.players.find(p => p.id === chosen.playerId);
-    if (owner) reveal(owner, chosen.card, `${asker.name} nimmt dir diese Karte:`);
+    let drawn = null;
     replenishDeckIfNeeded(room);
-    if (owner && room.deck.length) owner.hand.push(room.deck.shift());
+    if (owner && room.deck.length) { drawn = room.deck.shift(); owner.hand.push(drawn); }
     // restliche angebotene Karten zurück auf die Hand
     g.offers.forEach((o, i) => {
       if (i === oi) return;
       const pl = room.players.find(p => p.id === o.playerId);
       if (pl) pl.hand.push(o.card);
     });
+    room.lastAction = `${asker.name} nimmt sich eine Karte (Give me Five!).`;
+    // Reveal-Phase: der Bestohlene bestätigt (sieht genommene + gezogene Karte);
+    // alle anderen sehen nur, wem etwas genommen wurde. Erst nach Bestätigung geht es weiter.
+    if (!owner) { room.give5 = null; asker.hasDrawn = false; advanceTurn(room); broadcast(room); return; }
+    g.phase = 'reveal';
+    g.reveal = { ownerId: owner.id, ownerName: owner.name, byName: asker.name, taken: chosen.card, drawn };
+    broadcast(room);
+  });
+
+  // ---- Give me Five!: der Bestohlene bestätigt den Tausch ----
+  socket.on('confirmGive5', () => {
+    const room = joinedRoom;
+    const g = room && room.give5;
+    if (!g || g.phase !== 'reveal') return;
+    if (g.reveal && g.reveal.ownerId && g.reveal.ownerId !== selfId) return; // nur der Betroffene
+    const asker = room.players.find(p => p.id === g.by);
     room.give5 = null;
-    room.lastAction = `${asker.name} hat sich eine Karte genommen (Give me Five!).`;
-    // Der Zug des ausspielenden Spielers endet (ohne Ablegen).
-    asker.hasDrawn = false;
+    if (asker) asker.hasDrawn = false;
     advanceTurn(room);
     broadcast(room);
   });

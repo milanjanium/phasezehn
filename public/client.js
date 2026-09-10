@@ -35,7 +35,7 @@ let lastTap = { id: null, t: 0 }; // für Doppeltipp-Ablegen
 let showHandPeek = false;         // eigene Karten im Auswahl-Overlay einblenden
 let buildGroups = [];      // beim Auslegen: Karten-IDs je Anforderung
 let activeGroup = 0;
-let g5Snapshot = null;     // Give-me-Five: gemerkte Handreihenfolge (abgegebene Karten nur ausgrauen)
+let g5Sel = new Set();     // Give-me-Five: aktuell ausgewählte Karten zum Abgeben
 
 const $ = (id) => document.getElementById(id);
 
@@ -268,8 +268,15 @@ function showBigNotice(text, color, ms) {
   clearTimeout(el._t);
   el._t = setTimeout(() => { el.className = 'big-notice ' + (color || 'red'); }, ms || 5000);
 }
-// Aussetzen: großer roter Hinweis für 5 Sekunden
-socket.on('skipNotice', ({ by }) => showBigNotice(`${by} lässt dich aussetzen!`, 'red', 5000));
+// Aussetzen: dezenter Hinweis für ALLE (leicht eingeblendet, nicht rot)
+socket.on('skipInfo', ({ targetId, targetName }) => {
+  const mine = targetId === playerId;
+  const el = $('skip-notice');
+  el.textContent = mine ? 'Du musst aussetzen' : `${targetName} muss aussetzen`;
+  el.className = 'big-notice soft show';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.className = 'big-notice soft'; }, 2400);
+});
 
 // Gezogene Karte kurz groß anzeigen (Nachzieh-Animation)
 socket.on('cardReveal', ({ card, caption }) => showCardReveal(card, caption));
@@ -305,7 +312,7 @@ socket.on('state', (s) => {
     }
   }
 
-  if (!s.give5) g5Snapshot = null; // Give-me-Five vorbei -> Snapshot verwerfen
+  if (!s.give5) g5Sel.clear(); // Give-me-Five vorbei -> Auswahl verwerfen
 
   if (s.gameOver) return renderGameOver();
   if (s.roundOver) return renderRoundOver();
@@ -532,9 +539,10 @@ function renderGame() {
     });
   }
 
-  // Eigene Phase + Fortschritt
+  // Eigene Phase + Fortschritt (Klick zeigt die Phasen aller Spieler)
   $('my-phase-num').textContent = state.myPhaseIndex + 1;
   $('my-phase-desc').textContent = state.phases[state.myPhaseIndex].desc;
+  $('phase-panel').onclick = showPhasesPopup;
   const pips = $('phase-pips'); pips.innerHTML = '';
   for (let i = 0; i < state.phases.length; i++) {
     const s = document.createElement('span');
@@ -644,14 +652,7 @@ function onCardTap(card) {
     renderHand(); renderControls(); renderMeldsTable();
     return;
   }
-  // Vor dem Auslegen: Doppeltipp = direkt ablegen/spielen (flüssig); Einzeltipp = auswählen
-  const now = Date.now();
-  if (lastTap.id === card.id && now - lastTap.t < 400) {
-    lastTap = { id: null, t: 0 };
-    endTurnWithCard(card.id);
-    return;
-  }
-  lastTap = { id: card.id, t: now };
+  // Vor dem Auslegen: nur auswählen (Doppeltipp-Ablegen ist deaktiviert – passierte zu leicht aus Versehen)
   selected.clear(); selected.add(card.id);
   renderHand(); renderControls();
 }
@@ -692,7 +693,7 @@ function renderControls() {
     if (actSel) c.appendChild(btn('▶ Aktion spielen', 'good', () => endTurnWithCard(sel.id)));
     else { const b = btn('Karte ablegen', 'good', doDiscard); b.disabled = selected.size !== 1; c.appendChild(b); }
     const hint = document.createElement('p'); hint.className = 'hint';
-    hint.textContent = 'Tipp: Karte doppelt tippen legt sie sofort ab.';
+    hint.textContent = 'Karte antippen zum Auswählen, dann „Karte ablegen".';
     c.appendChild(hint);
   } else {
     // Nach dem Auslegen: anlegen (Karten wählen + auf Auslage tippen) und/oder ablegen
@@ -867,40 +868,81 @@ function renderPendingDraw() {
 // ---------- Give me Five! ----------
 function renderGive5() {
   const g = state.give5;
+
+  // Reveal: der Bestohlene sieht genommene + neue Karte und bestätigt; andere nur Info
+  if (g.phase === 'reveal' && g.reveal) {
+    const r = g.reveal;
+    if (r.ownerId === playerId) {
+      showOverlay('Karte weggenommen', `${r.byName} hat dir eine Karte genommen.`, (body) => {
+        const wrap = document.createElement('div'); wrap.className = 'g5-reveal';
+        const c1 = document.createElement('div'); c1.className = 'g5-rev-col';
+        c1.innerHTML = '<div class="g5-rev-label">Weggenommen</div>'; c1.appendChild(cardEl(r.taken));
+        wrap.appendChild(c1);
+        if (r.drawn) {
+          const c2 = document.createElement('div'); c2.className = 'g5-rev-col';
+          c2.innerHTML = '<div class="g5-rev-label">Neu gezogen</div>'; c2.appendChild(cardEl(r.drawn));
+          wrap.appendChild(c2);
+        }
+        body.appendChild(wrap);
+      }, [{ text: 'OK, weiter', cls: 'primary', fn: () => socket.emit('confirmGive5') }]);
+    } else {
+      showOverlay('Give me Five!', `${r.byName} hat ${r.ownerName} eine Karte weggenommen.`, null, []);
+    }
+    return;
+  }
+
+  // Ausspieler
   if (g.by === playerId) {
     if (g.phase === 'collecting') {
-      showOverlay('Give me Five!', `Warte auf Karten der Mitspieler … (${g.collected}/${g.needed})`, (body) => {
-        appendHandPeek(body, renderGive5);
-      }, []);
-    } else {
-      showOverlay('Give me Five! – nimm eine Karte', 'Wähle eine der angebotenen Karten.', (body) => {
+      showOverlay('Give me Five!', `Warte auf die Karten der Mitspieler … (${g.submittedCount}/${g.quotaCount})`,
+        (body) => appendHandPeek(body, renderGive5), []);
+    } else if (g.phase === 'picking') {
+      showOverlay('Give me Five! – nimm eine Karte', 'Wähle eine Karte (du siehst, von wem sie ist).', (body) => {
         const wrap = document.createElement('div'); wrap.className = 'g5-offers';
-        (g.offers || []).forEach(card => {
-          const ce = cardEl(card); ce.onclick = () => socket.emit('pickOffered', { cardId: card.id });
-          wrap.appendChild(ce);
+        (g.offers || []).forEach(o => {
+          const col = document.createElement('div'); col.className = 'g5-offer';
+          const ce = cardEl(o.card); ce.onclick = () => socket.emit('pickOffered', { cardId: o.card.id });
+          col.appendChild(ce);
+          const nm = document.createElement('div'); nm.className = 'g5-offer-from'; nm.textContent = 'von ' + o.from;
+          col.appendChild(nm);
+          wrap.appendChild(col);
         });
         body.appendChild(wrap);
         appendHandPeek(body, renderGive5);
       }, []);
     }
-  } else if (g.currentOffererId === playerId && g.phase === 'collecting') {
-    // Handreihenfolge einmal merken: abgegebene Karten bleiben an ihrer Stelle
-    // (nur ausgegraut), damit sich beim Klicken nichts verschiebt.
-    if (!g5Snapshot) g5Snapshot = [...state.myHand];
-    showOverlay('Give me Five!', `${g.byName} fordert Karten – gib eine ab:`, (body) => {
-      const wrap = document.createElement('div'); wrap.className = 'g5-offers';
-      g5Snapshot.forEach(card => {
-        const inHand = state.myHand.some(c => c.id === card.id);
+    return;
+  }
+
+  // Ich muss abgeben und habe noch nicht: Karten wie auf der Hand auswählen (gleiche Reihenfolge)
+  if (g.myQuota > 0 && !g.iSubmitted && g.phase === 'collecting') {
+    for (const id of [...g5Sel]) if (!state.myHand.some(c => c.id === id)) g5Sel.delete(id);
+    showOverlay('Give me Five!', `${g.byName} fordert Karten – wähle ${g.myQuota} aus:`, (body) => {
+      const wrap = document.createElement('div'); wrap.className = 'hand g5-hand';
+      sortedHand().forEach(card => {
         const ce = cardEl(card);
-        if (inHand) ce.onclick = () => socket.emit('offerCard', { cardId: card.id });
-        else ce.classList.add('g5-given'); // schon abgegeben -> ausgegraut
+        if (g5Sel.has(card.id)) ce.classList.add('selected');
+        ce.onclick = () => {
+          if (g5Sel.has(card.id)) g5Sel.delete(card.id);
+          else { if (g5Sel.size >= g.myQuota) return toast(`Nur ${g.myQuota} auswählen.`, true); g5Sel.add(card.id); }
+          renderGive5();
+        };
         wrap.appendChild(ce);
       });
       body.appendChild(wrap);
-    }, []);
-  } else {
-    showOverlay('Give me Five!', `${g.byName} spielt „Give me Five!". Bitte warten … (${g.collected}/${g.needed})`, null, []);
+      appendHandPeek(body, renderGive5);
+    }, [{ text: `Abgeben (${g5Sel.size}/${g.myQuota})`, cls: 'primary', fn: () => {
+      if (g5Sel.size !== g.myQuota) return toast(`Bitte genau ${g.myQuota} auswählen.`, true);
+      socket.emit('submitOffer', { cardIds: [...g5Sel] });
+    } }]);
+    return;
   }
+
+  // Warten (schon abgegeben oder nichts abzugeben)
+  const waitMsg = g.phase === 'picking'
+    ? `${g.byName} wählt eine Karte aus …`
+    : `Give me Five! – warte auf die anderen … (${g.submittedCount}/${g.quotaCount})`;
+  showOverlay('Give me Five!', waitMsg, (body) => appendHandPeek(body, renderGive5), []);
 }
 
 // ============================================================
@@ -914,6 +956,26 @@ function showOverlay(title, subtitle, bodyFn, actions) {
   const act = $('overlay-actions'); act.innerHTML = '';
   (actions || []).forEach(a => act.appendChild(btn(a.text, a.cls || '', a.fn)));
   $('overlay').classList.remove('hidden');
+}
+
+// Popup: welche Phase sammelt gerade wer?
+function showPhasesPopup() {
+  if (!state || !state.players) return;
+  showOverlay('Phasen der Spieler', '', (body) => {
+    const wrap = document.createElement('div'); wrap.className = 'phases-list';
+    state.players.forEach(p => {
+      const row = document.createElement('div'); row.className = 'phase-line' + (p.id === playerId ? ' me' : '');
+      row.innerHTML =
+        `<span class="avatar sm" style="background:${colorFor(p.name)}">${initials(p.name)}</span>` +
+        `<span class="pl-name">${escapeHtml(p.name)}${p.id === playerId ? ' (du)' : ''}</span>` +
+        `<span class="pl-phase">Phase ${p.phase + 1}</span>`;
+      wrap.appendChild(row);
+      const desc = document.createElement('div'); desc.className = 'pl-desc';
+      desc.textContent = state.phases[p.phase].desc;
+      wrap.appendChild(desc);
+    });
+    body.appendChild(wrap);
+  }, [{ text: 'Schließen', cls: '', fn: () => $('overlay').classList.add('hidden') }]);
 }
 
 // Wertungsblatt: Spieler × Runden + Gesamt
